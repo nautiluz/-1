@@ -1,11 +1,4 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/api/gmail/messages/route": "app/api/gmail/messages/route.js",
-  "/api/gmail/auth/route": "app/api/gmail/auth/route.js",
-  "/api/gmail/stats/route": "app/api/gmail/stats/route.js",
-  "/api/gmail/batch/route": "app/api/gmail/batch/route.js",
-  "/api/gmail/clean/route": "app/api/gmail/clean/route.js",
-  "/page": "app/page.js",
-  "/api/gmail/senders/route": "app/api/gmail/senders/route.js",
-  "/api/gmail/callback/route": "app/api/gmail/callback/route.js"
+  "/page": "app/page.js"
 }
