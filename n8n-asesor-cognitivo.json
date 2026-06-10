@@ -1,0 +1,166 @@
+{
+  "name": "Sistemas 4A - Asesor Cognitivo IA + Citas",
+  "nodes": [
+    {
+      "name": "Webhook Chat Cognitivo",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sistemas4a-asesor-ia",
+        "responseMode": "onReceived"
+      }
+    },
+    {
+      "name": "Iniciar Sesión Cognitiva",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [500, 300],
+      "parameters": {
+        "jsCode": "// Iniciar análisis cognitivo del cliente\nconst body = $input.first().json;\n\nconst sessionId = body.session_id || crypto.randomUUID();\nconst nombre = body.nombre || 'Cliente';\nconst telefono = body.telefono || '';\nconst servicioInteres = body.servicio || 'soporte';\nconst mensajeInicial = body.mensaje || '';\nconst historial = body.historial || [];\nconst imagen = body.imagen || null;\nconst tipoImagen = body.tipo_imagen || 'image/jpeg';\n\n// Mapa de servicios con palabras clave\nconst servicios = {\n  soporte: { nombre: 'Soporte Técnico', keywords: ['pc', 'computadora', 'lenta', 'error', 'windows', 'blue', 'no enciende', 'internet', 'red', 'wifi'] },\n  infra: { nombre: 'Infraestructura', keywords: ['servidor', 'data center', 'red', 'rack', 'backup', 'energia', 'ups', 'nube', 'azure', 'aws'] },\n  cyber: { nombre: 'Ciberseguridad', keywords: ['seguro', 'virus', 'hack', 'ransomware', 'proteger', 'firewall', 'vpn', 'ataque', 'datos', 'robo'] },\n  ia: { nombre: 'Automatización IA', keywords: ['automatizar', 'ia', 'ai', 'robot', 'proceso', 'chatbot', 'agente', 'flujo', 'optimizar'] }\n};\n\n// Determinar servicio basado en keywords\nlet servicioDetectado = servicioInteres;\nconst mensajeLower = (mensajeInicial + ' ' + historial.join(' ')).toLowerCase();\n\nfor (const [key, data] of Object.entries(servicios)) {\n  if (data.keywords.some(k => mensajeLower.includes(k))) {\n    servicioDetectado = key;\n    break;\n  }\n}\n\nreturn {\n  json: {\n    sessionId,\n    nombre,\n    telefono,\n    servicio: servicioDetectado,\n    servicioNombre: servicios[servicioDetectado].nombre,\n    mensajeInicial,\n    historial,\n    imagen,\n    tipoImagen,\n    contactoWA: telefono.replace(/\\D/g, ''),\n    fase: 'diagnostico', // diagnostico | agendamiento | confirmado\n    timestamp: new Date().toISOString()\n  }\n};"
+      }
+    },
+    {
+      "name": "Análisis Cognitivo IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 300],
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "method": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contents",
+              "value": "=[{\"parts\":[{\"text\":\"Eres el Asesor Cognitivo de Sistemas 4A (Ing. Angel Rodriguez). Tu misión es DIAGNOSTICAR el problema real del cliente mediante preguntas estratégicas.\\n\\n📋 CONTEXTO:\\n- Servicio: {{ $json.servicioNombre }}\\n- Cliente: {{ $json.nombre }}\\n- Mensaje inicial: {{ $json.mensajeInicial }}\\n- Historial: {{ $json.historial }}\\n\\n🎯 INSTRUCCIONES:\\n1. Analiza el problema y determina si tienes suficiente información para diagnosticarlo\\n2. Si necesitas más info, genera PREGUNTAS DE DIAGNÓSTICO específicas (máx 3)\\n3. Si ya puedes diagnosticar, proporciona:\\n   - DIAGNÓSTICO: Problema identificado\\n   - CAUSA: Por qué ocurrió\\n   - SOLUCIÓN: Qué necesitas hacer\\n   - DURACIÓN: Tiempo estimado (min)\\n   - URGENCIA: baja/media/alta\\n   - ACCIÓN: \"agendar\" si está listo para cita, \"preguntar\" si necesita más diagnóstico\\n\\n📝 FORMATO JSON:\\n{\\\"tipo\\\": \\\"respuesta\\\", \\\"preguntas\\\": [], \\\"diagnostico\\\": {}, \\\"accion\\\": \\\"preguntar\\\"}\"}]}]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Procesar Análisis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [1000, 300],
+      "parameters": {
+        "jsCode": "// Procesar respuesta de la IA y tomar decisión\nconst input = $input.first().json;\nconst datos = $('Iniciar Sesión Cognitiva').first().json;\n\nlet respuesta = {\n  tipo: 'preguntar',\n  preguntas: [],\n  diagnostico: null,\n  accion: 'preguntar',\n  mensaje: ''\n};\n\ntry {\n  if (input.candidates && input.candidates[0]?.content?.parts[0]?.text) {\n    const texto = input.candidates[0].content.parts[0].text;\n    \n    // Intentar parsear JSON de la respuesta\n    const jsonMatch = texto.match(/\\{[\\s\\S]*\\}/);\n    if (jsonMatch) {\n      respuesta = JSON.parse(jsonMatch[0]);\n    } else {\n      // Si no es JSON, crear respuesta de preguntas\n      respuesta.mensaje = texto;\n      respuesta.preguntas = texto.split('?').filter(p => p.trim()).slice(0, 3).map(p => p.trim() + '?');\n    }\n  }\n} catch (e) {\n  respuesta.mensaje = 'He recibido tu mensaje. Para darte el mejor diagnóstico, necesito hacerte algunas preguntas.';\n  respuesta.preguntas = ['¿Cuándo began el problema?', '¿Qué exacte está pasando?', '¿Ya intentaste algo?'];\n}\n\n// Determinar siguiente paso\nconst debeAgendar = respuesta.accion === 'agendar' || (respuesta.diagnostico && respuesta.diagnostico.duracion);\n\nreturn {\n  json: {\n    ...datos,\n    analisis: respuesta,\n    mensajeIA: respuesta.mensaje || respuesta.preguntas.join('\\n'),\n    preguntas: respuesta.preguntas,\n    diagnostico: respuesta.diagnostico,\n    listoParaAgendar: debeAgendar,\n    fase: debeAgendar ? 'agendamiento' : 'diagnostico'\n  }\n};"
+      }
+    },
+    {
+      "name": "¿Listo para Agendar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.listoParaAgendar }}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "inputs": ["Procesar Análisis"]
+    },
+    {
+      "name": "Agendar Cita",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [1500, 200],
+      "parameters": {
+        "jsCode": "// Preparar datos para agendar la cita\nconst datos = $input.first().json;\nconst diag = datos.diagnostico || {};\n\n// Calcular fecha sugerida (próximo horario disponible)\nconst ahora = new Date();\nlet fechaSugerida = new Date(ahora.getTime() + 2 * 60 * 60 * 1000); // +2 horas\n\n// Si es tarde, sugerir mañana\nif (fechaSugerida.getHours() >= 18) {\n  fechaSugerida.setDate(fechaSugerida.getDate() + 1);\n  fechaSugerida.setHours(9, 0, 0, 0);\n}\n\n// Duración basada en diagnóstico\nconst duracion = diag.duracion || 30;\nconst fechaFin = new Date(fechaSugerida.getTime() + duracion * 60 * 1000);\n\n// Mensaje de urgencia\nconst urgencia = diag.urgencia || 'media';\nlet emojiUrgencia = '🟡';\nif (urgencia === 'alta') emojiUrgencia = '🔴';\nif (urgencia === 'baja') emojiUrgencia = '🟢';\n\n// Generar opciones de horario para el cliente\nconst opciones = [];\nconst opcionesBase = [\n  { dia: 0, hora: 9 },\n  { dia: 0, hora: 11 },\n  { dia: 0, hora: 14 },\n  { dia: 0, hora: 16 },\n  { dia: 1, hora: 9 },\n  { dia: 1, hora: 11 }\n];\n\nfor (let i = 0; i < opcionesBase.length && opciones.length < 3; i++) {\n  const opt = new Date();\n  opt.setDate(opt.getDate() + opcionesBase[i].dia);\n  opt.setHours(opcionesBase[i].hora, 0, 0, 0);\n  if (opt > new Date()) {\n    opciones.push(opt.toISOString());\n  }\n}\n\nreturn {\n  json: {\n    ...datos,\n    fechaSugerida: fechaSugerida.toISOString(),\n    fechaFin: fechaFin.toISOString(),\n    duracion,\n    urgencia,\n    emojiUrgencia,\n    diagnosticoFinal: diag,\n    opcionesHorario: opciones,\n    titulo: `${datos.servicioNombre} - ${datos.nombre}`,\n    descripcion: `\\n🎯 *Diagnóstico:*\\n${diag.diagnostico || 'En proceso'}\\n\\n💡 *Causa:*\\n${diag.causa || 'Por determinar'}\\n\\n🔧 *Solución:*\\n${diag.solucion || 'Por definir'}\\n\\n⏱️ Duración: ${duracion} min\\n${emojiUrgencia} Urgencia: ${urgencia}`\n  }\n};"
+      },
+      "inputs": ["¿Listo para Agendar?"]
+    },
+    {
+      "name": "Crear Evento Calendar",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 3,
+      "position": [1750, 100],
+      "parameters": {
+        "operation": "create",
+        "calendar": "primary",
+        "title": "={{ $json.titulo }}",
+        "start": "={{ $json.fechaSugerida }}",
+        "end": "={{ $json.fechaFin }}",
+        "description": "={{ $json.descripcion }}",
+        "options": {
+          "location": "={{ $json.urgencia === 'alta' ? 'Requiere Visita Técnica' : 'Consulta Virtual' }}"
+        }
+      },
+      "credentials": {
+        "googleCalendarOAuth2Api": ""
+      }
+    },
+    {
+      "name": "Notificar a Angel",
+      "type": "n8n-nodes-base.httpRequest",
+     parameterName="url": "=https://wa.me/584120317421?text={{ encodeURIComponent('🔔 *Nueva Cita Sistemas 4A*\\n\\n📞 Cliente: ' + $json.nombre + '\\n📱 Tel: ' + $json.telefono + '\\n🛠️ Servicio: ' + $json.servicioNombre + '\\n' + $json.emojiUrgencia + ' Urgencia: ' + $json.urgencia + '\\n⏱️ Duración: ' + $json.duracion + ' min\\n\\n📋 *Diagnóstico IA:*\\n' + ($json.diagnosticoFinal?.diagnostico || $json.mensajeIA?.slice(0,200))) }}",
+      "typeVersion": 4,
+      "position": [1750, 250],
+      "parameters": {
+        "method": "GET",
+        "options": {}
+      }
+    },
+    {
+      "name": "Confirmar al Cliente (Elegir Horario)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1750, 400],
+      "parameters": {
+        "url": "=https://wa.me/58{{ $json.contactoWA }}?text={{ encodeURIComponent('✅ *Sistemas 4A - Diagnóstico Completado*\\n\\nHola ' + $json.nombre + ',\\n\\nHe analizado tu caso y esto es lo que encontré:\\n\\n📋 *Diagnóstico:*\\n' + ($json.diagnosticoFinal?.diagnostico || 'Análisis en proceso') + '\\n\\n💡 *Causa:*\\n' + ($json.diagnosticoFinal?.causa || 'Por determinar') + '\\n\\n🔧 *Solución propuesta:*\\n' + ($json.diagnosticoFinal?.solucion || 'Consultar en la cita') + '\\n\\n' + $json.emojiUrgencia + ' *Urgencia:* ' + $json.urgencia + '\\n⏱️ *Duración estimada:* ' + $json.duracion + ' min\\n\\n📅 ¿Cuándo puedes atender tu cita?\\nResponde con el número:\\n1) Hoy ' + $json.opcionesHorario[0]?.slice(0,16).replace('T', ' ') + '\\n2) Hoy ' + $json.opcionesHorario[1]?.slice(0,16).replace('T', ' ') + '\\n3) Mañana ' + $json.opcionesHorario[2]?.slice(0,16).replace('T', ' ')) }}",
+        "method": "GET",
+        "options": {}
+      }
+    },
+    {
+      "name": "Responder Preguntas de Diagnóstico",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameterName="url": "=https://wa.me/58{{ $json.contactoWA }}?text={{ encodeURIComponent('🧠 *Sistemas 4A - Análisis Cognitivo*\\n\\nHola ' + $json.nombre + ',\\n\\nPara entender exactamente tu problema y darte la mejor solución, necesito hacerte algunas preguntas:\\n\\n' + $json.preguntas.join('\\n\\n') + '\\n\\n\\nResponde y juntos descubriremos la mejor solución para ti.') }}",
+      "typeVersion": 4,
+      "position": [1500, 450],
+      "parameters": {
+        "method": "GET",
+        "options": {}
+      },
+      "inputs": ["¿Listo para Agendar?"]
+    }
+  ],
+  "connections": {
+    "Webhook Chat Cognitivo": {
+      "main": [["Iniciar Sesión Cognitiva"]]
+    },
+    "Iniciar Sesión Cognitiva": {
+      "main": [["Análisis Cognitivo IA"]]
+    },
+    "Análisis Cognitivo IA": {
+      "main": [["Procesar Análisis"]]
+    },
+    "¿Listo para Agendar?": {
+      "main": [
+        [["Agendar Cita"]],
+        [["Responder Preguntas de Diagnóstico"]]
+      ]
+    },
+    "Agendar Cita": {
+      "main": [["Crear Evento Calendar"], ["Notificar a Angel"], ["Confirmar al Cliente (Elegir Horario)"]]
+    },
+    "Crear Evento Calendar": {
+      "main": [["Notificar a Angel"]]
+    },
+    "Notificar a Angel": {
+      "main": [["Confirmar al Cliente (Elegir Horario)"]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["sistemas4a", "asesor-ia", "citas", "diagnostico"],
+  "triggerCount": 0
+}

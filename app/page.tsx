@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Trash2, Mail, Users, PieChart, Settings, Play, Plus, X } from 'lucide-react';
 
-const CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+const CLIENT_ID = '396680226341-t7qlgf5bu5mr6lcgegedghflces1gb58.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify';
 
 export default function Home() {
@@ -46,7 +46,7 @@ export default function Home() {
   }, [isAuthenticated, accessToken]);
 
   const handleLogin = () => {
-    const redirectUri = window.location.origin + '/';
+    const redirectUri = 'http://localhost:3001/';
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(SCOPES)}&include_granted_scopes=true`;
     window.location.href = authUrl;
   };
@@ -163,20 +163,33 @@ export default function Home() {
 
   const removeSender = async (sender: string) => {
     if (!accessToken) return;
+    if (!confirm(`¿Eliminar todos los correos de ${sender}?`)) return;
     setLoading(true);
     try {
-      const res = await gapiRequest(`https://gmail.googleapis.com/gmail/v1/users/me/messages?query=from:${encodeURIComponent(sender)}&maxResults=100`);
-      const messages = res.messages || [];
+      let allMessages: any[] = [];
+      let pageToken = '';
       
-      for (const msg of messages) {
+      do {
+        const url = pageToken 
+          ? `https://gmail.googleapis.com/gmail/v1/users/me/messages?query=from:${encodeURIComponent(sender)}&maxResults=500&pageToken=${pageToken}`
+          : `https://gmail.googleapis.com/gmail/v1/users/me/messages?query=from:${encodeURIComponent(sender)}&maxResults=500`;
+        const res = await gapiRequest(url);
+        allMessages = [...allMessages, ...(res.messages || [])];
+        pageToken = res.nextPageToken || '';
+      } while (pageToken);
+      
+      let deleted = 0;
+      for (const msg of allMessages) {
         try {
           await gapiRequest(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`, 'DELETE');
+          deleted++;
         } catch (e) {}
       }
       
+      alert(`Eliminados ${deleted} correos de ${sender}`);
       loadStats();
     } catch (err: any) {
-      setError('Error al eliminar');
+      setError('Error al eliminar: ' + err.message);
     }
     setLoading(false);
   };

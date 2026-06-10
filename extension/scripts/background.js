@@ -1,7 +1,7 @@
 // CleanMailBox - Background Service Worker
 // Handles OAuth, Gmail API calls, and messaging between components
 
-const CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+const CLIENT_ID = '396680226341-t7qlgf5bu5mr6lcgegedghflces1gb58.apps.googleusercontent.com';
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.modify'

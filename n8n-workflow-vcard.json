@@ -1,0 +1,105 @@
+{
+  "name": "Sistemas 4A - Citas vCard",
+  "nodes": [
+    {
+      "name": "Webhook vCard",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sistemas-4a-cita",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "name": "Parse Contact",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [500, 300],
+      "parameters": {
+        "jsCode": "// Extraer datos del cliente\nconst body = $input.first().json;\n\nconst nombre = body.nombre || 'Cliente';\nconst telefono = body.telefono || '';\nconst servicio = body.servicio || 'Consulta General';\nconst descripcion = body.descripcion || '';\nconst fecha = body.fecha || new Date().toISOString();\n\nreturn {\n  json: {\n    nombre,\n    telefono,\n    servicio,\n    descripcion,\n    fecha: new Date(fecha).toISOString(),\n    contactoWA: telefono.replace(/\\D/g, '')\n  }\n};"
+      }
+    },
+    {
+      "name": "Validar Datos",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [750, 300],
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "number": [
+            {
+              "value1": "={{ $json.telefono }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "inputs": ["Parse Contact"]
+    },
+    {
+      "name": "Crear Evento Calendar",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 3,
+      "position": [1000, 200],
+      "parameters": {
+        "operation": "create",
+        "calendar": "primary",
+        "title": "={{ $json.servicio }} - {{ $json.nombre }}",
+        "start": "={{ $json.fecha }}",
+        "end": "={{ $json.fecha }}",
+        "description": "Cliente: {{ $json.nombre }}\\nTeléfono: {{ $json.telefono }}\\nServicio: {{ $json.servicio }}\\nDescripción: {{ $json.descripcion }}",
+        "options": {
+          "location": "Consulta Virtual"
+        }
+      },
+      "credentials": {
+        "googleCalendarOAuth2Api": "Google Calendar"
+      }
+    },
+    {
+      "name": "Confirmar por WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 400],
+      "parameters": {
+        "url": "=https://wa.me/58{{ $json.contactoWA }}?text={{ encodeURIComponent('✅ *Sistemas 4A* confirma su cita\\n\\n👤 Cliente: ' + $json.nombre + '\\n📅 Fecha: ' + $json.fecha + '\\n🛠️ Servicio: ' + $json.servicio + '\\n\\n¡Nos vemos pronto!') }}",
+        "method": "GET",
+        "options": {}
+      }
+    },
+    {
+      "name": "Error - Datos Faltantes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 600],
+      "parameters": {
+        "url": "=https://wa.me/584120317421?text={{ encodeURIComponent('⚠️ *Error en vCard*\\nFaltan datos del cliente:\\n' + JSON.stringify($input.first().json)) }}",
+        "method": "GET"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook vCard": {
+      "main": [["Parse Contact"]]
+    },
+    "Validar Datos": {
+      "main": [
+        [["Crear Evento Calendar"]],
+        [["Confirmar por WhatsApp"]]
+      ],
+      "false": [["Error - Datos Faltantes"]]
+    },
+    "Crear Evento Calendar": {
+      "main": [["Confirmar por WhatsApp"]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["sistemas4a", "vcard", "citas"]
+}

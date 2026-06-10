@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador Algorítmico - Prof. Angel Rodriguez</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #020617; color: #e2e8f0; min-height: 100vh; }
+    .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-pulse { animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #1e293b; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    pre { tab-size: 2; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script>
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // Shorthand: E(tag, props, ...children) -> React.createElement with cn->className auto-conversion
+    function E(tag, props) {
+      if(props && props.cn) { props.className = props.cn; delete props.cn; }
+      var children = Array.prototype.slice.call(arguments, 2);
+      if(children.length===1 && Array.isArray(children[0])) children = children[0];
+      if(children.length===0) return React.createElement(tag, props);
+      return React.createElement.apply(React, [tag, props].concat(children));
+    }
+
+  // ===== ICONS SVG inline =====
+  const I = {
+    Play: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('polygon',{points:'5 3 19 12 5 21 5 3'})),
+    CheckCircle: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('path',{d:'M22 11.08V12a10 10 0 1 1-5.93-9.14'}),React.createElement('polyline',{points:'22 4 12 14.01 9 11.01'})),
+    XCircle: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('circle',{cx:12,cy:12,r:10}),React.createElement('line',{x1:15,y1:9,x2:9,y2:15}),React.createElement('line',{x1:9,y1:9,x2:15,y2:15})),
+    Code: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('polyline',{points:'16 18 22 12 16 6'}),React.createElement('polyline',{points:'8 6 2 12 8 18'})),
+    GitMerge: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('circle',{cx:18,cy:18,r:3}),React.createElement('circle',{cx:6,cy:6,r:3}),React.createElement('path',{d:'M6 21V9a9 9 0 0 0 9 9'})),
+    Terminal: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('polyline',{points:'4 17 10 11 4 5'}),React.createElement('line',{x1:12,y1:19,x2:20,y2:19})),
+    Trophy: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('path',{d:'M6 9H4.5a2.5 2.5 0 0 1 0-5H6'}),React.createElement('path',{d:'M18 9h1.5a2.5 2.5 0 0 0 0-5H18'}),React.createElement('path',{d:'M4 22h16'}),React.createElement('path',{d:'M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22'}),React.createElement('path',{d:'M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22'}),React.createElement('path',{d:'M18 2H6v7a6 6 0 0 0 12 0V2Z'})),
+    Lock: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('rect',{x:3,y:11,width:18,height:11,rx:2,ry:2}),React.createElement('path',{d:'M7 11V7a5 5 0 0 1 10 0v4'})),
+    Droplet: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('path',{d:'M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z'})),
+    Archive: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('rect',{x:2,y:3,width:20,height:5,rx:1}),React.createElement('path',{d:'M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8'}),React.createElement('path',{d:'M10 12h4'})),
+    HeartPulse: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('path',{d:'M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z'}),React.createElement('path',{d:'M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.78'})),
+    Car: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('path',{d:'M5 17a2 2 0 0 1-2-2V9l2-5h14l2 5v6a2 2 0 0 1-2 2'}),React.createElement('line',{x1:5,y1:5,x2:19,y2:5}),React.createElement('circle',{cx:7,cy:17,r:2}),React.createElement('circle',{cx:17,cy:17,r:2})),
+    Info: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('circle',{cx:12,cy:12,r:10}),React.createElement('line',{x1:12,y1:16,x2:12,y2:12}),React.createElement('line',{x1:12,y1:8,x2:12.01,y2:8})),
+    Network: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('rect',{x:16,y:16,width:6,height:6,rx:1}),React.createElement('rect',{x:2,y:16,width:6,height:6,rx:1}),React.createElement('rect',{x:9,y:2,width:6,height:6,rx:1}),React.createElement('path',{d:'M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3'}),React.createElement('path',{d:'M12 8v4'})),
+    Move: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('polyline',{points:'5 9 2 12 5 15'}),React.createElement('polyline',{points:'9 5 12 2 15 5'}),React.createElement('polyline',{points:'15 19 12 22 9 19'}),React.createElement('polyline',{points:'19 9 22 12 19 15'}),React.createElement('line',{x1:2,y1:12,x2:22,y2:12}),React.createElement('line',{x1:12,y1:2,x2:12,y2:22})),
+    Hand: (p) => React.createElement('svg',{...p,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},React.createElement('path',{d:'M18 11V6a2 2 0 0 0-4 0'}),React.createElement('path',{d:'M14 10V4a2 2 0 0 0-4 0'}),React.createElement('path',{d:'M10 10.5V6a2 2 0 0 0-4 0'}),React.createElement('path',{d:'M18 8a2 2 0 0 1 4 0v6a8 8 0 0 1-8 8h-2c-2.21 0-4-1.79-4-4V7a2 2 0 0 1 4 0v0'}))
+  };
+
+  function Icon({name,className,size}) {
+    const C = I[name]; return C ? C({className,width:size||20,height:size||20}) : null;
+  }
+
+  function highlightPseudo(text){
+    var kw=['ALGORITMO','FINALGORITMO','DEFINIR','REAL','ENTERO','CADENA','SI','SINO','SINOSI','ENTONCES','FINSI','MIENTRAS','FINMIENTRAS','REPETIR','HASTA','QUE','ESCRIBIR','LEER','ESPERAR','HACER','COMO','FIN'];
+    function esc(s){return s.replace(/[&<>]/g,function(c){return c==='&'?'&amp;':c==='<'?'&lt;':'&gt;'})}
+    var html=esc(text);
+    // strings
+    html=html.replace(/("[^"]*")/g,'<span class="text-emerald-400">$1</span>');
+    // numbers (standalone)
+    html=html.replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="text-yellow-400">$1</span>');
+    // multi-char operators
+    html=html.replace(/(&lt;\-)/g,'<span class="text-orange-400">$1</span>');
+    html=html.replace(/(&lt;=)/g,'<span class="text-orange-400">$1</span>');
+    html=html.replace(/(&gt;=)/g,'<span class="text-orange-400">$1</span>');
+    html=html.replace(/(==)/g,'<span class="text-orange-400">$1</span>');
+    html=html.replace(/(!=)/g,'<span class="text-orange-400">$1</span>');
+    // single-char operators (avoiding numbers in spans)
+    html=html.replace(/([+\-*\/&gt;&lt;])(?!([^<]*>|[^>]*<\/span>))/g,'<span class="text-orange-400">$1</span>');
+    // keywords (must be whole words, after operators to avoid interference)
+    html=html.replace(/\b(ALGORITMO|FINALGORITMO|DEFINIR|REAL|ENTERO|CADENA|SI|SINO|SINOSI|ENTONCES|FINSI|MIENTRAS|FINMIENTRAS|REPETIR|HASTA|QUE|ESCRIBIR|LEER|ESPERAR|HACER|COMO|FIN)\b/g,'<span class="text-purple-400 font-bold">$1</span>');
+    return html;
+  }
+
+  // ===== CANVAS RENDERER =====
+  const NODE_W=200, NODE_H=80;
+  const COLORS = {
+    bg:'#0f172a', grid:'#1e293b', nodeBg:'#1e293b', nodeBorder:'#475569',
+    condition:'#a78bfa', result:'#10b981', process:'#3b82f6', io:'#f59e0b',
+    start:'#10b981', end:'#ef4444', truePath:'#10b981', falsePath:'#ef4444',
+    edge:'#64748b', edgeLabel:'#94a3b8', highlight:'#fbbf24',
+    correct:'rgba(16,185,129,0.25)', wrong:'rgba(239,68,68,0.25)',
+    selectedBg:'#334155', nodeText:'#e2e8f0', btnHover:'#475569'
+  };
+
+  function drawArrow(ctx, x1, y1, x2, y2, color, label) {
+    const dx=x2-x1, dy=y2-y1;
+    const len=Math.sqrt(dx*dx+dy*dy);
+    if(len<1)return;
+    const nx=dx/len, ny=dy/len;
+    // Line
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+    ctx.strokeStyle=color||COLORS.edge; ctx.lineWidth=2.5; ctx.stroke();
+    // Arrowhead
+    const aSize=10;
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-nx*aSize-ny*aSize*0.4, y2-ny*aSize+nx*aSize*0.4);
+    ctx.lineTo(x2-nx*aSize+ny*aSize*0.4, y2-ny*aSize-nx*aSize*0.4);
+    ctx.closePath(); ctx.fillStyle=color||COLORS.edge; ctx.fill();
+    // Label
+    if(label){
+      const mx=(x1+x2)/2+ny*16, my=(y1+y2)/2-nx*16;
+      ctx.font='bold 14px monospace';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      const isV=label==='V';
+      ctx.fillStyle=isV?COLORS.truePath:COLORS.falsePath;
+      ctx.fillText(label, mx, my);
+    }
+  }
+
+  function drawNode(ctx, n, highlighted, glowColor) {
+    const {x,y,w,h} = n;
+    const cx=x+w/2, cy=y+h/2;
+    const isCond=n.type==='condition';
+    const isResult=n.type==='result';
+    const isStart=n.type==='start';
+    const isEnd=n.type==='end';
+    const isIO=n.type==='io';
+
+    ctx.save();
+
+    // Glow
+    if(glowColor){
+      ctx.shadowColor=glowColor; ctx.shadowBlur=25;
+    }
+
+    // Shape
+    ctx.beginPath();
+    if(isCond){
+      ctx.moveTo(cx, y); ctx.lineTo(x+w, cy); ctx.lineTo(cx, y+h); ctx.lineTo(x, cy); ctx.closePath();
+    } else if(isStart||isEnd){
+      ctx.ellipse(cx, cy, w/2, h/2, 0, 0, Math.PI*2);
+    } else if(isIO){
+      ctx.moveTo(x+15, y); ctx.lineTo(x+w, y); ctx.lineTo(x+w-15, y+h); ctx.lineTo(x, y+h); ctx.closePath();
+    } else {
+      const r=10;
+      ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+      ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+      ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+      ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+    }
+
+    // Fill
+    let fill=COLORS.nodeBg;
+    if(n.selected) fill=COLORS.selectedBg;
+    else if(isCond) fill='#1e1b4b';
+    else if(isResult) fill='#052e16';
+    else if(isStart) fill='#052e16';
+    else if(isEnd) fill='#450a0a';
+    else if(isIO) fill='#1e3a5f';
+    else fill='#1e293b';
+
+    ctx.fillStyle=fill; ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.strokeStyle=glowColor||(isCond?COLORS.condition:isResult?COLORS.result:isIO?COLORS.io:isStart?COLORS.start:isEnd?COLORS.end:COLORS.nodeBorder);
+    ctx.lineWidth=glowColor?3:2; ctx.stroke();
+
+    // Icon indicator
+    ctx.font='16px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillStyle='#64748b';
+    if(isCond) ctx.fillText('◆', cx, y-22);
+    else if(isResult) ctx.fillText('●', cx, y-22);
+    else if(isStart) ctx.fillText('▶', cx, y-22);
+    else if(isEnd) ctx.fillText('■', cx, y-22);
+    else if(isIO) ctx.fillText('◈', cx, y-22);
+
+    // Text
+    const lines=Array.isArray(n.text)?n.text:[n.text];
+    ctx.font='13px monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    const lineH=18;
+    const startY=cy-(lines.length-1)*lineH/2;
+    lines.forEach((line,i)=>{
+      ctx.fillStyle=COLORS.nodeText;
+      ctx.fillText(line, cx, startY+i*lineH);
+    });
+
+    // Correct/wrong overlay
+    if(n.overlay){
+      ctx.fillStyle=n.overlay==='correct'?COLORS.correct:COLORS.wrong;
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  // ===== CANVAS TRUTH TREE =====
+  function CanvasTruthTree({tree, onComplete}) {
+    const ref=useRef(null);
+    const [nodes,setNodes]=useState([]);
+    const [edges,setEdges]=useState([]);
+    const [selectedNode,setSelectedNode]=useState(null);
+    const [pathResults,setPathResults]=useState({});
+    const [dragNode,setDragNode]=useState(null);
+    const [dragOff,setDragOff]=useState(null);
+    const [message,setMessage]=useState(null);
+    const [completed,setCompleted]=useState(false);
+    const [canvasSize,setCanvasSize]=useState({w:900,h:500});
+    const interactionRef=useRef(null);
+
+    // Build layout
+    useEffect(()=>{
+      if(!tree)return;
+      const canvas=ref.current;
+      if(!canvas)return;
+      const rect=canvas.parentElement.getBoundingClientRect();
+      const initW=Math.max(rect.width-32,600);
+      const initH=500;
+
+      // Layout from tree data
+      const nodeMap={};
+      tree.nodes.forEach(n=>{ nodeMap[n.id]={...n, w:NODE_W, h:NODE_H}; });
+
+      // Build parent/children
+      const children={}, parent={};
+      tree.edges.forEach(e=>{
+        if(!children[e.from])children[e.from]=[];
+        children[e.from].push(e);
+        parent[e.to]=e.from;
+      });
+
+      // Find root
+      const rootId=tree.nodes.find(n=>!parent[n.id])?.id||tree.nodes[0].id;
+
+      // Calculate depth & position
+      const depths={}, xOrder={};
+      function traverse(id,d,order){
+        depths[id]=d;
+        const kids=children[id]||[];
+        if(kids.length>0){
+          traverse(kids[0].to,d+1,order);
+          xOrder[id]=order.current++;
+          if(kids.length>1) traverse(kids[1].to,d+1,order);
+        } else {
+          xOrder[id]=order.current++;
+        }
+      }
+      const order={current:0};
+      traverse(rootId,0,order);
+
+      const maxDepth=Math.max(...Object.values(depths),0);
+      const maxOrder=Math.max(...Object.values(xOrder),1);
+      const padX=130, padY=70;
+      const gapX=(initW-padX*2)/maxOrder;
+      const gapY=(initH-padY*2)/(maxDepth+1);
+
+      let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+      Object.keys(nodeMap).forEach(id=>{
+        nodeMap[id].x=padX+xOrder[id]*gapX-NODE_W/2;
+        nodeMap[id].y=padY+depths[id]*gapY-NODE_H/2;
+        const n=nodeMap[id];
+        if(n.x<minX)minX=n.x;
+        if(n.y<minY)minY=n.y;
+        if(n.x+n.w>maxX)maxX=n.x+n.w;
+        if(n.y+n.h>maxY)maxY=n.y+n.h;
+      });
+
+      setNodes(Object.values(nodeMap));
+      setEdges(tree.edges);
+      setSelectedNode(null);
+      setPathResults({});
+      setMessage(null);
+      setCompleted(false);
+      setCanvasSize({w:Math.max(maxX+padX,initW),h:Math.max(maxY+padY,initH)});
+    },[tree]);
+
+    const getNodeById=(id)=>nodes.find(n=>n.id===id);
+
+    const handleCanvasClick=useCallback((e)=>{
+      if(!ref.current||completed)return;
+      const rect=ref.current.getBoundingClientRect();
+      const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+      const scaleX=ref.current.width/rect.width, scaleY=ref.current.height/rect.height;
+      const cx=mx*scaleX, cy=my*scaleY;
+
+      // Check if clicked on a node
+      for(const n of nodes){
+        if(cx>=n.x&&cx<=n.x+n.w&&cy>=n.y&&cy<=n.y+n.h){
+          if(n.type==='condition'&&!pathResults[n.id]){
+            setSelectedNode(n.id);
+            interactionRef.current={x:n.x+n.w/2,y:n.y+n.h};
+            return;
+          }
+        }
+      }
+      setSelectedNode(null);
+    },[nodes,pathResults,completed]);
+
+    const handlePathChoice=useCallback((choice)=>{
+      if(!selectedNode||completed)return;
+      const n=nodes.find(x=>x.id===selectedNode);
+      if(!n)return;
+
+      const correct=n.correctPath===choice;
+      const newResults={...pathResults, [selectedNode]:{choice,correct}};
+      setPathResults(newResults);
+      setSelectedNode(null);
+
+      if(correct){
+        setMessage({type:'success',text:'¡Correcto! Elegiste el camino adecuado.'});
+        // Check if all conditions answered
+        const allCond=nodes.filter(x=>x.type==='condition');
+        const allDone=allCond.every(c=>newResults[c.id]);
+        if(allDone){
+          setCompleted(true);
+          setTimeout(()=>{ if(onComplete)onComplete(); },500);
+        }
+      } else {
+        const expected=n.correctPath==='true'?'Verdadero (V)':'Falso (F)';
+        setMessage({type:'error',text:`Incorrecto. El flujo correcto era: ${expected}. ¡Intenta de nuevo!`});
+      }
+
+      setTimeout(()=>setMessage(null),3000);
+    },[selectedNode,nodes,pathResults,completed]);
+
+    const handleMouseDown=useCallback((e)=>{
+      if(!ref.current)return;
+      const rect=ref.current.getBoundingClientRect();
+      const mx=(e.clientX-rect.left)*(ref.current.width/rect.width);
+      const my=(e.clientY-rect.top)*(ref.current.height/rect.height);
+      for(const n of nodes){
+        if(mx>=n.x&&mx<=n.x+n.w&&my>=n.y&&my<=n.y+n.h){
+          setDragNode(n.id);
+          setDragOff({x:mx-n.x,y:my-n.y});
+          return;
+        }
+      }
+    },[nodes]);
+
+    const handleMouseMove=useCallback((e)=>{
+      if(!dragNode||!ref.current)return;
+      const rect=ref.current.getBoundingClientRect();
+      const mx=(e.clientX-rect.left)*(ref.current.width/rect.width);
+      const my=(e.clientY-rect.top)*(ref.current.height/rect.height);
+      setNodes(prev=>prev.map(n=>n.id===dragNode?{...n,x:mx-dragOff.x,y:my-dragOff.y}:n));
+    },[dragNode,dragOff]);
+
+    const handleMouseUp=useCallback(()=>{
+      setDragNode(null); setDragOff(null);
+    },[]);
+
+    // Draw
+    useEffect(()=>{
+      const canvas=ref.current;
+      if(!canvas)return;
+      const ctx=canvas.getContext('2d');
+      const W=canvas.width, H=canvas.height;
+
+      ctx.clearRect(0,0,W,H);
+      // Grid
+      ctx.strokeStyle='rgba(30,41,59,0.5)'; ctx.lineWidth=1;
+      for(let x=0;x<W;x+=40){ ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke(); }
+      for(let y=0;y<H;y+=40){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke(); }
+
+      // Edges
+      edges.forEach(e=>{
+        const fn=nodes.find(n=>n.id===e.from);
+        const tn=nodes.find(n=>n.id===e.to);
+        if(!fn||!tn)return;
+        const fx=fn.x+fn.w/2, fy=fn.y+fn.h;
+        const tx=tn.x+tn.w/2, ty=tn.y;
+        const isV=e.label==='V';
+        const pr=pathResults[e.from];
+        let color=COLORS.edge;
+        if(pr){
+          const isCorrectPath=isV&&pr.choice==='true'||!isV&&pr.choice==='false';
+          if(pr.correct&&isCorrectPath) color=COLORS.truePath;
+          else if(!pr.correct&&isCorrectPath) color=COLORS.falsePath;
+        }
+        drawArrow(ctx,fx,fy,tx,ty,color,e.label);
+      });
+
+      // Nodes
+      nodes.forEach(n=>{
+        const pr=pathResults[n.id];
+        const glow=pr?pr.correct?COLORS.truePath:COLORS.falsePath:null;
+        drawNode(ctx,n,selectedNode===n.id,glow);
+      });
+
+      // Interaction popup
+      if(selectedNode&&interactionRef.current){
+        const ix=interactionRef.current.x, iy=interactionRef.current.y+20;
+        // Background
+        ctx.fillStyle='rgba(15,23,42,0.95)'; ctx.strokeStyle=COLORS.condition; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.roundRect(ix-90,iy,180,50,8); ctx.fill(); ctx.stroke();
+        // Buttons
+        const btnW=70, btnH=34, gap=10;
+        const bx=ix-btnW-gap/2, by=iy+8;
+        // V button
+        ctx.fillStyle='#065f46'; ctx.strokeStyle='#10b981'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.roundRect(bx,by,btnW,btnH,6); ctx.fill(); ctx.stroke();
+        ctx.fillStyle='#10b981'; ctx.font='bold 16px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('V',bx+btnW/2,by+btnH/2);
+        // F button
+        ctx.fillStyle='#7f1d1d'; ctx.strokeStyle='#ef4444';
+        ctx.beginPath(); ctx.roundRect(bx+btnW+gap,by,btnW,btnH,6); ctx.fill(); ctx.stroke();
+        ctx.fillStyle='#ef4444'; ctx.fillText('F',bx+btnW+gap+btnW/2,by+btnH/2);
+      }
+    },[nodes,edges,selectedNode,pathResults]);
+
+    // Overlay click detection for V/F buttons
+    useEffect(()=>{
+      const canvas=ref.current;
+      if(!canvas)return;
+      const handler=(e)=>{
+        if(!selectedNode||completed)return;
+        const rect=canvas.getBoundingClientRect();
+        const mx=(e.clientX-rect.left)*(canvas.width/rect.width);
+        const my=(e.clientY-rect.top)*(canvas.height/rect.height);
+
+        if(interactionRef.current){
+          const ix=interactionRef.current.x, iy=interactionRef.current.y+20;
+          const btnW=70, btnH=34, gap=10;
+          const bx=ix-btnW-gap/2, by=iy+8;
+
+          if(mx>=bx&&mx<=bx+btnW&&my>=by&&my<=by+btnH){
+            handlePathChoice('true'); return;
+          }
+          if(mx>=bx+btnW+gap&&mx<=bx+btnW*2+gap&&my>=by&&my<=by+btnH){
+            handlePathChoice('false'); return;
+          }
+        }
+      };
+      canvas.addEventListener('click',handler);
+      return ()=>canvas.removeEventListener('click',handler);
+    },[selectedNode,completed,handlePathChoice]);
+
+    return React.createElement('div',{className:'space-y-3'},
+      React.createElement('div',{className:'flex items-center justify-between'},
+        React.createElement('h4',{className:'text-lg font-bold text-purple-400 flex items-center'},
+          React.createElement(Icon,{name:'Network',size:18,className:'mr-2'}),
+          ' Árbol de Decisión Interactivo'
+        ),
+        React.createElement('div',{className:'flex items-center gap-3 text-xs text-slate-500'},
+          React.createElement('span',{className:'flex items-center gap-1'},React.createElement(Icon,{name:'Move',size:14}),'Arrastra nodos'),
+          React.createElement('span',{className:'flex items-center gap-1'},React.createElement(Icon,{name:'Hand',size:14}),'Click en ◆ para decidir V/F')
+        )
+      ),
+      React.createElement('div',{style:{position:'relative',overflow:'auto',background:'#0f172a',borderRadius:'0.75rem',border:'1px solid rgba(71,85,105,0.5)'}},
+        React.createElement('canvas',{
+          ref,
+          className:'border-0 cursor-pointer',
+          width:canvasSize.w, height:canvasSize.h,
+          onMouseDown:handleMouseDown,
+          onMouseMove:handleMouseMove,
+          onMouseUp:handleMouseUp,
+          onMouseLeave:handleMouseUp,
+          onClick:handleCanvasClick
+        }),
+        message?React.createElement('div',{
+          className:`absolute top-4 left-1/2 -translate-x-1/2 px-6 py-3 rounded-xl font-bold text-sm shadow-2xl animate-fade-in z-10 ${
+            message.type==='success'?'bg-emerald-900/80 text-emerald-300 border border-emerald-600':
+            'bg-red-900/80 text-red-300 border border-red-600'
+          }`
+        },message.text):null,
+        completed?React.createElement('div',{
+          className:'absolute bottom-4 left-1/2 -translate-x-1/2 px-6 py-3 rounded-xl font-bold text-sm shadow-2xl animate-fade-in bg-emerald-900/80 text-emerald-300 border border-emerald-600'
+        },'¡Todos los caminos correctos! +100 XP'):null
+      )
+    );
+  }
+
+  // ===== CANVAS FLOWCHART =====
+  function CanvasFlowchart({flow,onComplete}) {
+    const ref=useRef(null);
+    const [nodes,setNodes]=useState([]);
+    const [edges,setEdges]=useState([]);
+    const [step,setStep]=useState(-1);
+    const [highlightedNodes,setHighlightedNodes]=useState([]);
+    const [waitingDecision,setWaitingDecision]=useState(null);
+    const [msg,setMsg]=useState(null);
+    const [finished,setFinished]=useState(false);
+    const [stepping,setStepping]=useState(false);
+    const [dragNode,setDragNode]=useState(null);
+    const [dragOff,setDragOff]=useState(null);
+    const [canvasSize,setCanvasSize]=useState({w:900,h:550});
+
+    // Build layout
+    useEffect(()=>{
+      if(!flow)return;
+      const canvas=ref.current;
+      if(!canvas)return;
+      const rect=canvas.parentElement.getBoundingClientRect();
+      const initW=Math.max(rect.width-32,700);
+      const initH=550;
+
+      const nodeMap={};
+      flow.nodes.forEach(n=>{ nodeMap[n.id]={...n,w:NODE_W,h:NODE_H}; });
+
+      const children={}, parent={};
+      flow.edges.forEach(e=>{
+        if(!children[e.from])children[e.from]=[];
+        children[e.from].push(e);
+        parent[e.to]=e.from;
+      });
+
+      const rootId=flow.nodes.find(n=>!parent[n.id])?.id||flow.nodes[0].id;
+
+      // Calculate depth (longest path from root)
+      const depth={};
+      function calcDepth(id,d){
+        if(depth[id]!==undefined)return;
+        depth[id]=d;
+        (children[id]||[]).forEach(c=>calcDepth(c.to,d+1));
+      }
+      calcDepth(rootId,0);
+
+      // Calculate horizontal position (in-order within depth)
+      const byDepth={};
+      Object.keys(depth).forEach(id=>{
+        const d=depth[id];
+        if(!byDepth[d])byDepth[d]=[];
+        byDepth[d].push(id);
+      });
+
+      const xPos={};
+      Object.keys(byDepth).forEach(d=>{
+        const nodesAtDepth=byDepth[d];
+        const spacing=initW/(nodesAtDepth.length+1);
+        nodesAtDepth.forEach((id,i)=>{
+          xPos[id]=spacing*(i+1);
+        });
+      });
+
+      const maxDepth=Math.max(...Object.values(depth),0);
+      const padY=60;
+
+      let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+      Object.keys(nodeMap).forEach(id=>{
+        nodeMap[id].x=xPos[id]-NODE_W/2;
+        nodeMap[id].y=padY+depth[id]*((initH-padY*2)/(maxDepth+1))-NODE_H/2;
+        const n=nodeMap[id];
+        if(n.x<minX)minX=n.x;
+        if(n.y<minY)minY=n.y;
+        if(n.x+n.w>maxX)maxX=n.x+n.w;
+        if(n.y+n.h>maxY)maxY=n.y+n.h;
+      });
+
+      setNodes(Object.values(nodeMap));
+      setEdges(flow.edges);
+      setStep(-1);
+      setHighlightedNodes([]);
+      setWaitingDecision(null);
+      setFinished(false);
+      setCanvasSize({w:Math.max(maxX+60,initW),h:Math.max(maxY+padY,initH)});
+    },[flow]);
+
+    const executeStep=useCallback((decision)=>{
+      if(finished)return;
+      if(waitingDecision){
+        // User made a decision at a condition node
+        const condId=waitingDecision.nodeId;
+        const nextEdge=edges.find(e=>e.from===condId&&e.label===decision);
+        if(!nextEdge){ setMsg({type:'error',text:'Ruta no encontrada'}); return; }
+
+        const correctDecision=waitingDecision.correctPath;
+        if(decision===correctDecision){
+          setMsg({type:'success',text:'¡Decisión correcta! Sigues el flujo adecuado.'});
+          setHighlightedNodes(prev=>[...prev,nextEdge.to]);
+          setStep(prev=>prev+1);
+          // Check if next node is condition
+          const nextNode=nodes.find(n=>n.id===nextEdge.to);
+          if(nextNode&&nextNode.type==='condition'){
+            setWaitingDecision({nodeId:nextNode.id,correctPath:nextNode.correctPath});
+          } else {
+            const nextKids=edges.filter(e=>e.from===nextEdge.to);
+            if(nextKids.length===0){
+              setWaitingDecision(null);
+              setFinished(true);
+              setMsg({type:'success',text:'¡Algoritmo ejecutado correctamente! +100 XP'});
+              setTimeout(()=>{ if(onComplete)onComplete(); },800);
+            } else {
+              // Check if next condition
+              const nn=nodes.find(n=>n.id===nextKids[0].to);
+              if(nn&&nn.type==='condition'){
+                setWaitingDecision({nodeId:nn.id,correctPath:nn.correctPath});
+              } else {
+                setWaitingDecision(null);
+                // Auto-advance through non-condition nodes
+                setTimeout(()=>{
+                  const nextId=nextKids[0].to;
+                  setHighlightedNodes(prev=>[...prev,nextId]);
+                  setStep(prev=>prev+1);
+                  const nextN=nodes.find(n=>n.id===nextId);
+                  if(nextN&&nextN.type==='condition'){
+                    setWaitingDecision({nodeId:nextN.id,correctPath:nextN.correctPath});
+                  } else {
+                    const moreEdges=edges.filter(e=>e.from===nextId);
+                    if(moreEdges.length>0){
+                      const nextMore=nodes.find(n=>n.id===moreEdges[0].to);
+                      if(nextMore&&nextMore.type==='condition'){
+                        setWaitingDecision({nodeId:nextMore.id,correctPath:nextMore.correctPath});
+                      }
+                    }
+                  }
+                },500);
+              }
+            }
+          }
+        } else {
+          const expected=correctDecision==='true'?'Verdadero (V)':'Falso (F)';
+          setMsg({type:'error',text:`¡Incorrecto! La condición evaluó a ${expected}. ¡Reinicia y prueba otra ruta.`});
+          setWaitingDecision(null);
+        }
+        setTimeout(()=>setMsg(null),3000);
+        return;
+      }
+
+      // First step: highlight root
+      if(step===-1){
+        const rootId=nodes.length>0?nodes[0].id:null;
+        if(rootId){
+          setHighlightedNodes([rootId]);
+          setStep(0);
+          const rootNode=nodes.find(n=>n.id===rootId);
+          if(rootNode&&rootNode.type==='condition'){
+            setWaitingDecision({nodeId:rootId,correctPath:rootNode.correctPath});
+          } else {
+            // Auto-advance
+            const nextEdges=edges.filter(e=>e.from===rootId);
+            if(nextEdges.length>0){
+              const nextId=nextEdges[0].to;
+              setTimeout(()=>{
+                setHighlightedNodes(prev=>[...prev,nextId]);
+                setStep(1);
+                const nextN=nodes.find(n=>n.id===nextId);
+                if(nextN&&nextN.type==='condition'){
+                  setWaitingDecision({nodeId:nextId,correctPath:nextN.correctPath});
+                }
+              },500);
+            }
+          }
+        }
+        return;
+      }
+    },[step,waitingDecision,nodes,edges,finished,onComplete]);
+
+    const resetFlow=useCallback(()=>{
+      setStep(-1); setHighlightedNodes([]); setWaitingDecision(null); setMsg(null); setFinished(false);
+    },[]);
+
+    // Draw
+    useEffect(()=>{
+      const canvas=ref.current;
+      if(!canvas)return;
+      const ctx=canvas.getContext('2d');
+      const W=canvas.width, H=canvas.height;
+
+      ctx.clearRect(0,0,W,H);
+      // Grid
+      ctx.strokeStyle='rgba(30,41,59,0.5)'; ctx.lineWidth=1;
+      for(let x=0;x<W;x+=40){ ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke(); }
+      for(let y=0;y<H;y+=40){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke(); }
+
+      // Edges
+      edges.forEach(e=>{
+        const fn=nodes.find(n=>n.id===e.from);
+        const tn=nodes.find(n=>n.id===e.to);
+        if(!fn||!tn)return;
+        const fx=fn.x+fn.w/2, fy=fn.y+fn.h;
+        const tx=tn.x+tn.w/2, ty=tn.y;
+        const hl=highlightedNodes.includes(e.from)&&highlightedNodes.includes(e.to);
+        drawArrow(ctx,fx,fy,tx,ty,hl?COLORS.highlight:COLORS.edge,e.label);
+      });
+
+      // Nodes
+      nodes.forEach(n=>{
+        const hl=highlightedNodes.includes(n.id);
+        drawNode(ctx,n,hl,hl?COLORS.highlight:null);
+      });
+
+      // Legend
+      ctx.font='11px monospace'; ctx.textAlign='left'; ctx.textBaseline='top';
+      ctx.fillStyle='rgba(100,116,139,0.7)';
+      const legendY=H-50;
+      const legends=[
+        {x:20,color:COLORS.condition,text:'◆ Decisión'},
+        {x:140,color:COLORS.result,text:'● Resultado'},
+        {x:260,color:COLORS.process,text:'▣ Proceso'},
+        {x:380,color:COLORS.io,text:'◈ Entrada/Salida'},
+        {x:520,color:COLORS.highlight,text:'★ Paso actual'}
+      ];
+      legends.forEach(l=>{
+        ctx.fillStyle=l.color; ctx.fillRect(l.x,legendY,10,10);
+        ctx.fillStyle='rgba(100,116,139,0.7)'; ctx.fillText(l.text,l.x+16,legendY);
+      });
+    },[nodes,edges,highlightedNodes]);
+
+    // Mouse drag handlers
+    const hMD=useCallback((e)=>{
+      if(!ref.current)return;
+      const rect=ref.current.getBoundingClientRect();
+      const mx=(e.clientX-rect.left)*(ref.current.width/rect.width);
+      const my=(e.clientY-rect.top)*(ref.current.height/rect.height);
+      for(const n of nodes){
+        if(mx>=n.x&&mx<=n.x+n.w&&my>=n.y&&my<=n.y+n.h){
+          setDragNode(n.id); setDragOff({x:mx-n.x,y:my-n.y}); return;
+        }
+      }
+    },[nodes]);
+
+    const hMM=useCallback((e)=>{
+      if(!dragNode||!ref.current)return;
+      const rect=ref.current.getBoundingClientRect();
+      const mx=(e.clientX-rect.left)*(ref.current.width/rect.width);
+      const my=(e.clientY-rect.top)*(ref.current.height/rect.height);
+      setNodes(prev=>prev.map(n=>n.id===dragNode?{...n,x:mx-dragOff.x,y:my-dragOff.y}:n));
+    },[dragNode,dragOff]);
+
+    const hMU=useCallback(()=>{setDragNode(null);setDragOff(null);},[]);
+
+    const isRunning=highlightedNodes.length>0&&!finished;
+
+    return React.createElement('div',{className:'space-y-3'},
+      React.createElement('div',{className:'flex items-center justify-between flex-wrap gap-2'},
+        React.createElement('h4',{className:'text-lg font-bold text-indigo-400 flex items-center'},
+          React.createElement(Icon,{name:'GitMerge',size:18,className:'mr-2'}),
+          ' Diagrama de Flujo Interactivo'
+        ),
+        React.createElement('div',{className:'flex gap-2'},
+          !isRunning&&!finished?React.createElement('button',{
+            onClick:()=>executeStep(null),
+            className:'bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-bold text-sm transition flex items-center gap-1'
+          },React.createElement(Icon,{name:'Play',size:16}),' Ejecutar Paso'):
+
+          waitingDecision?React.createElement(React.Fragment,null,
+            React.createElement('button',{
+              onClick:()=>executeStep('true'),
+              className:'bg-emerald-700 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm transition flex items-center gap-1'
+            },React.createElement(Icon,{name:'CheckCircle',size:16}),' Elegir V (Verdadero)'),
+            React.createElement('button',{
+              onClick:()=>executeStep('false'),
+              className:'bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm transition flex items-center gap-1'
+            },React.createElement(Icon,{name:'XCircle',size:16}),' Elegir F (Falso)')
+          ):null,
+
+          finished||isRunning?React.createElement('button',{
+            onClick:resetFlow,
+            className:'bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-bold text-sm transition'
+          },'Reiniciar'):null
+        )
+      ),
+      React.createElement('div',{style:{position:'relative',overflow:'auto',background:'#0f172a',borderRadius:'0.75rem',border:'1px solid rgba(71,85,105,0.5)'}},
+        React.createElement('canvas',{
+          ref,
+          className:'border-0 cursor-pointer',
+          width:canvasSize.w,height:canvasSize.h,
+          onMouseDown:hMD, onMouseMove:hMM, onMouseUp:hMU, onMouseLeave:hMU
+        }),
+        msg?React.createElement('div',{
+          className:`absolute top-4 left-1/2 -translate-x-1/2 px-6 py-3 rounded-xl font-bold text-sm shadow-2xl animate-fade-in z-10 ${
+            msg.type==='success'?'bg-emerald-900/80 text-emerald-300 border border-emerald-600':
+            'bg-red-900/80 text-red-300 border border-red-600'
+          }`
+        },msg.text):null,
+        finished?React.createElement('div',{
+          className:'absolute bottom-4 left-1/2 -translate-x-1/2 px-6 py-3 rounded-xl font-bold text-sm shadow-2xl animate-fade-in bg-emerald-900/80 text-emerald-300 border border-emerald-600'
+        },'¡Algoritmo ejecutado correctamente! +100 XP'):null,
+        waitingDecision?React.createElement('div',{
+          className:'absolute top-4 right-4 px-4 py-2 rounded-lg bg-amber-900/80 text-amber-300 border border-amber-600 font-bold text-sm animate-fade-in'
+        },'⏳ Requiere tu decisión: ¿V o F?'):null
+      )
+    );
+  }
+
+  // ===== PROBLEMAS =====
+  const PROBLEMAS = [
+    {
+      id:1, title:"Control de Inventario (Biblioteca)", icon:'Archive', iconColor:'text-yellow-400',
+      statement:"Diseñar un algoritmo de control cíclico automatizado para la gestión de inventario crítico en una biblioteca pública. El sistema deberá evaluar de forma continua la disponibilidad de ejemplares en sala mediante lectores RFID; si el porcentaje de libros disponibles en los estantes desciende por debajo del umbral del 30% respecto al inventario base, se activará automáticamente una alerta de reposición para el personal. Esta rutina de verificación se ejecutará de manera indefinida con un intervalo de muestreo de 10 minutos.",
+      truthTree:{
+        nodes:[
+          {id:'n0',text:'% libros < 30%?',type:'condition',correctPath:'true'},
+          {id:'n1',text:'ALERTA Reposición',type:'result'},
+          {id:'n2',text:'Inventario óptimo',type:'result'}
+        ],
+        edges:[
+          {from:'n0',to:'n1',label:'V'},
+          {from:'n0',to:'n2',label:'F'}
+        ]
+      },
+      flowChart:{
+        nodes:[
+          {id:'n0',text:'Inicio',type:'start'},
+          {id:'n1',text:'umbral = 30%',type:'process'},
+          {id:'n2',text:'Leer RFID',type:'io'},
+          {id:'n3',text:'calcular %',type:'process'},
+          {id:'n4',text:'% < 30%?',type:'condition',correctPath:'true'},
+          {id:'n5',text:'ALERTA Reposición',type:'io'},
+          {id:'n6',text:'Inventario óptimo',type:'io'},
+          {id:'n7',text:'Esperar 10 min',type:'process'},
+          {id:'n8',text:'1 == 0?',type:'condition'}
+        ],
+        edges:[
+          {from:'n0',to:'n1'},{from:'n1',to:'n2'},{from:'n2',to:'n3'},{from:'n3',to:'n4'},
+          {from:'n4',to:'n5',label:'V'},{from:'n4',to:'n6',label:'F'},
+          {from:'n5',to:'n7'},{from:'n6',to:'n7'},{from:'n7',to:'n8'},
+          {from:'n8',to:'n2',label:'Falso\n(ciclo infinito)'}
+        ]
+      },
+      truthData:{
+        title:"Evaluación de Umbral y Ciclo Infinito",
+        headers:["Lectura RFID","% Disponible","% < 30?","Resultado"],
+        rows:[["Libros: 120 de 500","24%","Verdadero","ALERTA"],["Libros: 400 de 500","80%","Falso","Óptimo"]]
+      },
+      pseudo:`Algoritmo ControlInventarioBiblioteca
+    Definir libros_base, disponibles, umbral Real
+    umbral <- 30.0
+    Repetir
+        disponibles <- LeerRFID()
+        porcentaje <- (disponibles / libros_base) * 100
+        Si porcentaje < umbral Entonces
+            Escribir "ALERTA: Reposición necesaria."
+        Sino
+            Escribir "Inventario óptimo."
+        FinSi
+        Esperar 10 Minutos
+    Hasta Que (1 == 0)
+FinAlgoritmo`,
+      explicacion:[
+        "1. DEFINIR variables: libros_base (total ejemplares), disponibles (lectura RFID), umbral (fijo 30%).",
+        "2. REPETIR ... HASTA QUE (1==0): ciclo infinito que se ejecuta siempre.",
+        "3. disponibles <- LeerRFID(): simula la lectura del sensor en los estantes.",
+        "4. porcentaje <- (disponibles / libros_base) * 100: calcula el % de libros presentes.",
+        "5. SI porcentaje < umbral ENTONCES: evalúa si el inventario está crítico.",
+        "6. Si es VERDADERO (V): activa ALERTA de reposición para el personal.",
+        "7. Si es FALSO (F): muestra que el inventario está óptimo.",
+        "8. Esperar 10 Minutos: pausa antes de la siguiente iteración.",
+        "9. HASTA QUE (1==0): condición siempre falsa → ciclo infinito intencional."
+      ],
+      questions:[
+        {q:"¿Qué tipo de ciclo se usa?",options:["Ciclo contador","Ciclo eval. al final","No se ejecuta"],answer:1},
+        {q:"¿Por qué usar (1==0) al final?",options:["Error sintaxis","Ciclo infinito","Detener"],answer:1}
+      ]
+    },
+    {
+      id:2, title:"Control de Acceso (Puerta)", icon:'Lock', iconColor:'text-red-400',
+      statement:"Diseñar un sistema de seguridad para una puerta inteligente. El usuario tiene un máximo de 3 intentos. Puede entrar digitando '1234' o presentando 'NFC_TOKEN'. Si agota los 3 intentos, el sistema bloquea la puerta.",
+      truthTree:{
+        nodes:[
+          {id:'n0',text:["codigo=='1234' O","tarjeta=='NFC_TOKEN'?"],type:'condition',correctPath:'true'},
+          {id:'n1',text:'Acceso CONCEDIDO',type:'result'},
+          {id:'n2',text:'intentos == 3?',type:'condition',correctPath:'true'},
+          {id:'n3',text:'Puerta BLOQUEADA',type:'result'},
+          {id:'n4',text:'intentos++',type:'result'}
+        ],
+        edges:[
+          {from:'n0',to:'n1',label:'V'},
+          {from:'n0',to:'n2',label:'F'},
+          {from:'n2',to:'n3',label:'V'},
+          {from:'n2',to:'n4',label:'F'}
+        ]
+      },
+      flowChart:{
+        nodes:[
+          {id:'n0',text:'Inicio',type:'start'},
+          {id:'n1',text:'intentos = 0',type:'process'},
+          {id:'n2',text:'intentos < 3?',type:'condition'},
+          {id:'n3',text:'Leer codigo,tarjeta',type:'io'},
+          {id:'n4',text:["codigo='1234' O","tarjeta='NFC_TOKEN'?"],type:'condition',correctPath:'true'},
+          {id:'n5',text:"Acceso CONCEDIDO",type:'result'},
+          {id:'n6',text:'intentos++',type:'process'},
+          {id:'n7',text:'Denegado',type:'io'},
+          {id:'n8',text:'intentos==3?',type:'condition',correctPath:'true'},
+          {id:'n9',text:'Puerta BLOQUEADA',type:'result'},
+          {id:'n10',text:'Fin',type:'end'}
+        ],
+        edges:[
+          {from:'n0',to:'n1'},{from:'n1',to:'n2'},{from:'n2',to:'n3',label:'Sí'},
+          {from:'n3',to:'n4'},{from:'n4',to:'n5',label:'V'},{from:'n4',to:'n6',label:'F'},
+          {from:'n6',to:'n7'},{from:'n7',to:'n2'},{from:'n2',to:'n8',label:'No'},
+          {from:'n8',to:'n9',label:'Sí'},{from:'n8',to:'n10',label:'No'}
+        ]
+      },
+      truthData:{
+        title:"Operador OR y Ciclo Mientras",
+        headers:["Código","Tarjeta","Cod=='1234' O Tarj=='NFC_TOKEN'","Resultado"],
+        rows:[
+          ["1234","Ninguna","V O F","Verdadero"],
+          ["0000","NFC_TOKEN","F O V","Verdadero"],
+          ["1234","NFC_TOKEN","V O V","Verdadero"],
+          ["0000","Ninguna","F O F","Falso"]
+        ]
+      },
+      pseudo:`Algoritmo ControlAcceso
+    Definir intentos Entero
+    Definir codigo, tarjeta Cadena
+    intentos <- 0
+    Mientras intentos < 3 Hacer
+        Leer codigo, tarjeta
+        Si codigo=="1234" O tarjeta=="NFC_TOKEN" Entonces
+            Escribir "Acceso concedido."
+            intentos <- 4
+        Sino
+            intentos <- intentos + 1
+            Escribir "Denegado."
+        FinSi
+    FinMientras
+    Si intentos == 3 Entonces
+        Escribir "Puerta bloqueada."
+    FinSi
+FinAlgoritmo`,
+      explicacion:[
+        "1. DEFINIR variables: intentos (entero), codigo y tarjeta (cadena).",
+        "2. intentos <- 0: inicializa el contador de fallos.",
+        "3. MIENTRAS intentos < 3 HACER: ciclo que se ejecuta mientras haya oportunidades.",
+        "4. Leer codigo, tarjeta: captura los datos ingresados por el usuario.",
+        "5. SI codigo=='1234' O tarjeta=='NFC_TOKEN': evalúa si ALGUNA condición es verdadera.",
+        "6. VERDADERO: concede acceso y fuerza salida del ciclo (intentos=4 rompe la condición).",
+        "7. FALSO: incrementa intentos, muestra 'Denegado' y vuelve a evaluar.",
+        "8. Al salir del ciclo, SI intentos==3 entonces bloquea la puerta definitivamente.",
+        "9. El operador O (OR) da VERDADERO si al menos una condición se cumple."
+      ],
+      questions:[
+        {q:"¿Por qué 'intentos=4' al conceder acceso?",options:["Dar más intentos","Forzar salida del ciclo","Bloquear"],answer:1},
+        {q:"¿Qué operador permite entrar con código O tarjeta?",options:["AND","OR","NOT"],answer:1}
+      ]
+    },
+    {
+      id:3, title:"Monitoreo de Estacionamiento", icon:'Car', iconColor:'text-green-400',
+      statement:"Diseñar un sistema de monitoreo continuo para un estacionamiento techado con sensor ultrasónico. El sistema debe leer la distancia medida por el sensor; si la distancia es menor al umbral de 30 cm, significa que hay un vehículo ocupando el espacio, por lo que se enciende un letrero de 'Ocupado'. En caso contrario, el letrero muestra 'Libre'. La lectura se repite cada 10 segundos de forma infinita.",
+      truthTree:{
+        nodes:[
+          {id:'n0',text:'distancia < 30cm?',type:'condition',correctPath:'true'},
+          {id:'n1',text:'Letrero: OCUPADO',type:'result'},
+          {id:'n2',text:'Letrero: LIBRE',type:'result'}
+        ],
+        edges:[
+          {from:'n0',to:'n1',label:'V'},
+          {from:'n0',to:'n2',label:'F'}
+        ]
+      },
+      flowChart:{
+        nodes:[
+          {id:'n0',text:'Inicio',type:'start'},
+          {id:'n1',text:'umbral = 30cm',type:'process'},
+          {id:'n2',text:'Leer sensor ultrasónico',type:'io'},
+          {id:'n3',text:'distancia < 30cm?',type:'condition',correctPath:'true'},
+          {id:'n4',text:'Letrero: OCUPADO',type:'io'},
+          {id:'n5',text:'Letrero: LIBRE',type:'io'},
+          {id:'n6',text:'Esperar 10 seg',type:'process'},
+          {id:'n7',text:'1 == 0?',type:'condition'}
+        ],
+        edges:[
+          {from:'n0',to:'n1'},{from:'n1',to:'n2'},{from:'n2',to:'n3'},
+          {from:'n3',to:'n4',label:'V'},{from:'n3',to:'n5',label:'F'},
+          {from:'n4',to:'n6'},{from:'n5',to:'n6'},{from:'n6',to:'n7'},
+          {from:'n7',to:'n2',label:'Falso\n(ciclo infinito)'}
+        ]
+      },
+      truthData:{
+        title:"Evaluación de Umbral para Estacionamiento",
+        headers:["Sensor","distancia < 30cm","Resultado","Letrero"],
+        rows:[["Distancia: 15cm","15 < 30","Verdadero","OCUPADO"],["Distancia: 30cm","30 < 30","Falso","LIBRE"],["Distancia: 85cm","85 < 30","Falso","LIBRE"]]
+      },
+      pseudo:`Algoritmo MonitoreoEstacionamiento
+    Definir distancia, umbral Real
+    umbral <- 30.0
+    Repetir
+        distancia <- LeerSensorUltrasonico()
+        Si distancia < umbral Entonces
+            Escribir "OCUPADO"
+        Sino
+            Escribir "LIBRE"
+        FinSi
+        Esperar 10 Segundos
+    Hasta Que (1 == 0)
+FinAlgoritmo`,
+      explicacion:[
+        "1. DEFINIR distancia y umbral como variables REALES (decimales).",
+        "2. umbral <- 30.0: fija la distancia máxima para considerar espacio ocupado.",
+        "3. REPETIR ... HASTA QUE (1==0): ciclo infinito de monitoreo continuo.",
+        "4. distancia <- LeerSensorUltrasonico(): obtiene la medición del sensor en cm.",
+        "5. SI distancia < umbral ENTONCES: evalúa si hay un vehículo presente.",
+        "6. VERDADERO: muestra 'OCUPADO' en el letrero electrónico.",
+        "7. FALSO: muestra 'LIBRE' indicando espacio disponible.",
+        "8. Esperar 10 Segundos: intervalo de muestreo antes de la siguiente lectura.",
+        "9. HASTA QUE (1==0): condición siempre falsa → repite indefinidamente."
+      ],
+      questions:[
+        {q:"¿Qué tipo de ciclo se usa?",options:["Ciclo contador","Ciclo eval. al final","No se ejecuta"],answer:1},
+        {q:"¿Por qué usar (1==0) al final?",options:["Error sintaxis","Ciclo infinito","Detener"],answer:1}
+      ]
+    },
+    {
+      id:4, title:"Control de Inventario", icon:'Archive', iconColor:'text-yellow-400',
+      statement:"Desarrollar un sistema de inventario para reactivos en un laboratorio. Inicia con 20 unidades. Permite Entradas (sumar) o Salidas (restar). Si el inventario es menor a 5, lanza ALERTA.",
+      truthTree:{
+        nodes:[
+          {id:'n0',text:"op == 'Entrada'?",type:'condition',correctPath:'true'},
+          {id:'n1',text:'stock += cantidad',type:'process'},
+          {id:'n2',text:'stock -= cantidad',type:'process'},
+          {id:'n3',text:'stock < 5?',type:'condition',correctPath:'true'},
+          {id:'n4',text:'ALERTA CRÍTICA',type:'result'},
+          {id:'n5',text:'Stock suficiente',type:'result'}
+        ],
+        edges:[
+          {from:'n0',to:'n1',label:'V'},{from:'n0',to:'n2',label:'F'},
+          {from:'n1',to:'n3'},{from:'n2',to:'n3'},
+          {from:'n3',to:'n4',label:'V'},{from:'n3',to:'n5',label:'F'}
+        ]
+      },
+      flowChart:{
+        nodes:[
+          {id:'n0',text:'Inicio',type:'start'},
+          {id:'n1',text:'stock = 20',type:'process'},
+          {id:'n2',text:'Leer op, cant',type:'io'},
+          {id:'n3',text:"op == 'Entrada'?",type:'condition',correctPath:'true'},
+          {id:'n4',text:'stock += cant',type:'process'},
+          {id:'n5',text:'stock -= cant',type:'process'},
+          {id:'n6',text:'Imprimir stock',type:'io'},
+          {id:'n7',text:'stock < 5?',type:'condition',correctPath:'true'},
+          {id:'n8',text:'ALERTA',type:'result'},
+          {id:'n9',text:'Fin',type:'end'}
+        ],
+        edges:[
+          {from:'n0',to:'n1'},{from:'n1',to:'n2'},{from:'n2',to:'n3'},
+          {from:'n3',to:'n4',label:'V'},{from:'n3',to:'n5',label:'F'},
+          {from:'n4',to:'n6'},{from:'n5',to:'n6'},{from:'n6',to:'n7'},
+          {from:'n7',to:'n8',label:'V'},{from:'n7',to:'n9',label:'F'}
+        ]
+      },
+      truthData:{
+        title:"Bifurcación y Alerta",
+        headers:["Operación","op=='Entrada'?","Stock Final","stock<5?"],
+        rows:[["Entrada 10","V→Suma","30","Falso"],["Salida 5","F→Resta","15","Falso"],["Salida 16","F→Resta","4","Verdadero"]]
+      },
+      pseudo:`Algoritmo InventarioLaboratorio
+    Definir stock_actual, cantidad Entero
+    Definir operacion Cadena
+    stock_actual <- 20
+    Escribir "Operacion (Entrada/Salida):"
+    Leer operacion
+    Escribir "Cantidad:"
+    Leer cantidad
+    Si operacion == "Entrada" Entonces
+        stock_actual <- stock_actual + cantidad
+    Sino
+        stock_actual <- stock_actual - cantidad
+    FinSi
+    Escribir "Stock: ", stock_actual
+    Si stock_actual < 5 Entonces
+        Escribir "ALERTA: Stock critico!"
+    FinSi
+FinAlgoritmo`,
+      explicacion:[
+        "1. DEFINIR stock_actual y cantidad como ENTERO, operacion como CADENA.",
+        "2. stock_actual <- 20: inventario inicial de reactivos en el laboratorio.",
+        "3. Escribir y Leer operacion: solicita al usuario el tipo de movimiento.",
+        "4. Escribir y Leer cantidad: captura el número de unidades a mover.",
+        "5. SI operacion == 'Entrada' ENTONCES: evalúa el tipo de operación.",
+        "6. VERDADERO: suma la cantidad al stock (stock_actual + cantidad).",
+        "7. FALSO (Sino): resta la cantidad del stock (stock_actual - cantidad).",
+        "8. Muestra el stock resultante con Escribir.",
+        "9. SI stock_actual < 5 ENTONCES: evalúa si el inventario es crítico.",
+        "10. VERDADERO: lanza ALERTA de stock crítico para reabastecer."
+      ],
+      questions:[
+        {q:"Stock=20, Salida=16: ¿qué pasa?",options:["Stock=4, ALERTA","Stock=4, sin alerta","Stock=36"],answer:0},
+        {q:"¿Qué pasa si operacion='Retiro'?",options:["Error","Entra por Sino","Ignora"],answer:1}
+      ]
+    },
+    {
+      id:5, title:"Asistente Nutricional", icon:'HeartPulse', iconColor:'text-pink-400',
+      statement:"Calculadora que asigna meta calórica según actividad (1=2000, 2=2500 cal). Luego ajusta según peso: >90kg -500, <60kg +500, sino mantener.",
+      truthTree:{
+        nodes:[
+          {id:'n0',text:'actividad == 1?',type:'condition',correctPath:'true'},
+          {id:'n1',text:'cal = 2000',type:'process'},
+          {id:'n2',text:'cal = 2500',type:'process'},
+          {id:'n3',text:'peso > 90?',type:'condition',correctPath:'false'},
+          {id:'n4',text:'Plan: REDUCCIÓN',type:'result'},
+          {id:'n5',text:'peso < 60?',type:'condition',correctPath:'true'},
+          {id:'n6',text:'Plan: AUMENTO',type:'result'},
+          {id:'n7',text:'Plan: MANTENIMIENTO',type:'result'}
+        ],
+        edges:[
+          {from:'n0',to:'n1',label:'V'},{from:'n0',to:'n2',label:'F'},
+          {from:'n1',to:'n3'},{from:'n2',to:'n3'},
+          {from:'n3',to:'n4',label:'V'},{from:'n3',to:'n5',label:'F'},
+          {from:'n5',to:'n6',label:'V'},{from:'n5',to:'n7',label:'F'}
+        ]
+      },
+      flowChart:{
+        nodes:[
+          {id:'n0',text:'Inicio',type:'start'},
+          {id:'n1',text:'Leer peso, act',type:'io'},
+          {id:'n2',text:'actividad == 1?',type:'condition',correctPath:'true'},
+          {id:'n3',text:'cal = 2000',type:'process'},
+          {id:'n4',text:'cal = 2500',type:'process'},
+          {id:'n5',text:'peso > 90?',type:'condition',correctPath:'false'},
+          {id:'n6',text:'Plan: REDUCCIÓN',type:'result'},
+          {id:'n7',text:'peso < 60?',type:'condition',correctPath:'true'},
+          {id:'n8',text:'Plan: AUMENTO',type:'result'},
+          {id:'n9',text:'Plan: MANTENIMIENTO',type:'result'},
+          {id:'n10',text:'Fin',type:'end'}
+        ],
+        edges:[
+          {from:'n0',to:'n1'},{from:'n1',to:'n2'},
+          {from:'n2',to:'n3',label:'V'},{from:'n2',to:'n4',label:'F'},
+          {from:'n3',to:'n5'},{from:'n4',to:'n5'},
+          {from:'n5',to:'n6',label:'V'},{from:'n5',to:'n7',label:'F'},
+          {from:'n7',to:'n8',label:'V'},{from:'n7',to:'n9',label:'F'},
+          {from:'n6',to:'n10'},{from:'n8',to:'n10'},{from:'n9',to:'n10'}
+        ]
+      },
+      truthData:{
+        title:"Condicionales Anidados",
+        headers:["Paciente","Actividad","peso>90?","peso<60?","Plan"],
+        rows:[["100kg,Act:1","1->2000","Sí","-","Reducción:1500"],["55kg,Act:2","2->2500","No","Sí","Aumento:3000"],["75kg,Act:1","1->2000","No","No","Mantenimiento:2000"]]
+      },
+      pseudo:`Algoritmo CalculadoraCalorias
+    Definir peso, actividad, cal Real
+    Escribir "Peso y actividad (1-Baja,2-Alta):"
+    Leer peso, actividad
+    Si actividad == 1 Entonces
+        cal <- 2000
+    Sino
+        cal <- 2500
+    FinSi
+    Si peso > 90 Entonces
+        Escribir "Reduccion: ", cal-500
+    Sino Si peso < 60 Entonces
+        Escribir "Aumento: ", cal+500
+    Sino
+        Escribir "Mantenimiento: ", cal
+    FinSi
+FinAlgoritmo`,
+      explicacion:[
+        "1. DEFINIR peso, actividad, cal como variables REALES.",
+        "2. Escribir y Leer peso, actividad: captura los datos del usuario.",
+        "3. SI actividad == 1 ENTONCES: evalúa si la actividad es baja.",
+        "4. VERDADERO: asigna 2000 calorías base (sedentario).",
+        "5. FALSO (Sino): asigna 2500 calorías base (activo).",
+        "6. SI peso > 90 ENTONCES: evalúa si hay sobrepeso significativo.",
+        "7. VERDADERO: reduce 500 calorías (déficit = cal-500).",
+        "8. SINO SI peso < 60 ENTONCES: evalúa si hay bajo peso.",
+        "9. VERDADERO: aumenta 500 calorías (superávit = cal+500).",
+        "10. SINO (todas FALSAS): mantiene las calorías base sin ajuste."
+      ],
+      questions:[
+        {q:"¿Qué estructura evalúa el peso?",options:["Ciclos anidados","Condicionales múltiples","Arreglos"],answer:1},
+        {q:"95kg, act 2: ¿objetivo final?",options:["2500","2000","3000"],answer:1}
+      ]
+    }
+  ];
+
+  // ===== COMPONENTES COMUNES =====
+  function TabButton({icon,label,active,onClick}){
+    return React.createElement('button',{onClick,className:`flex items-center space-x-1.5 px-3 md:px-4 py-2.5 font-medium text-xs transition-colors ${active?'border-b-2 border-emerald-500 text-emerald-400 bg-slate-800':'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'}`},
+      React.createElement(Icon,{name:icon,size:16}),React.createElement('span',null,label)
+    );
+  }
+
+  function TruthTable({data}){
+    if(!data)return null;
+    return React.createElement('div',{className:'overflow-x-auto rounded-xl border border-slate-700'},
+      React.createElement('table',{className:'w-full text-left text-sm text-slate-300'},
+        React.createElement('thead',{className:'bg-slate-800 text-purple-400 font-mono border-b border-slate-700'},
+          React.createElement('tr',null,data.headers.map((h,i)=>React.createElement('th',{key:i,className:'px-6 py-4'},h)))
+        ),
+        React.createElement('tbody',{className:'bg-slate-900/50 divide-y divide-slate-800 font-mono'},
+          data.rows.map((row,i)=>React.createElement('tr',{key:i,className:'hover:bg-slate-800/80 transition-colors'},
+            row.map((cell,j)=>{
+              const isV=cell.includes('Verdadero')||cell.includes('ON')||cell.includes('Concedido')||cell.includes('Suma')||cell.includes('Sí')||cell.includes('V→');
+              const isF=cell.includes('Falso')||cell.includes('OFF')||cell.includes('Denegado')||cell.includes('Error')||cell.includes('Resta')||cell.includes('No')||cell.includes('F→');
+              let cls='px-6 py-4 whitespace-nowrap ';
+              if(isV) cls+='text-emerald-400 font-bold';
+              else if(isF) cls+='text-red-400 font-bold';
+              return React.createElement('td',{key:j,className:cls},cell);
+            })
+          ))
+        )
+      )
+    );
+  }
+
+  // ===== SIMULADOR =====
+  function SimulatorEngine({problem,onComplete}){
+    const [logs,setLogs]=useState([{text:'> [Terminal Iniciada]',className:'text-slate-300'}]);
+    useEffect(()=>{setLogs([{text:'> [Terminal Iniciada]',className:'text-slate-300'}])},[problem.id]);
+    const addLog=(msg,t='info')=>{
+      const c=t==='error'?'text-red-400':t==='success'?'text-emerald-400':'text-slate-300';
+      setLogs(p=>[...p,{text:'> '+msg,className:c}]);
+    };
+    const CW=()=>React.createElement('div',{className:'bg-[#0a0a0a] border border-slate-700 rounded-xl p-4 mt-6 h-56 overflow-y-auto font-mono text-sm shadow-inner flex flex-col space-y-1'},
+      logs.map((l,i)=>React.createElement('div',{key:i,className:l.className},l.text))
+    );
+
+    function Sim1Core({problem,onComplete,addLog}){
+      const[libros,sLibros]=useState(400);const[base]=useState(500);
+      const run=()=>{
+        const pct=Math.round((libros/base)*100);
+        addLog('RFID: '+libros+'/'+base+' = '+pct+'%');
+        if(pct<30){
+          addLog(pct+'<30 -> VERDADERO');
+          addLog('ALERTA: Reposición necesaria.','error');
+        }else{
+          addLog(pct+'<30 -> FALSO');
+          addLog('Inventario óptimo.','success');
+        }
+        addLog('Esperar 10 min...');onComplete();
+      };
+      return E('div',{cn:'space-y-3 animate-fade-in'},
+        E('div',{cn:'bg-slate-800/60 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-400 space-y-1'},
+          E('p',null,'1. Ajusta el deslizador para cambiar los libros disponibles en estante.'),
+          E('p',null,'2. Presiona "Verificar" para simular la lectura RFID.'),
+          E('p',null,'3. Observa si el porcentaje cae bajo el 30% (ALERTA) o se mantiene óptimo.')
+        ),
+        E('p',{cn:'text-slate-300 text-sm'},'Ajusta libros disponibles (base: '+base+').'),
+        E('div',null,
+          E('label',{cn:'block text-sm text-slate-400 mb-2'},'Libros en estante: '+libros+' ('+Math.round((libros/base)*100)+'%)'),
+          E('input',{type:'range',min:0,max:500,value:libros,onChange:e=>sLibros(parseInt(e.target.value)),cn:'w-full accent-yellow-500'})
+        ),
+        E('button',{onClick:run,cn:'bg-yellow-600 hover:bg-yellow-500 text-white px-6 py-3 rounded-lg font-bold transition w-full sm:w-64 mx-auto block flex items-center justify-center gap-2'},
+          E(Icon,{name:'Play',size:18}),'Verificar')
+      );
+    }
+    function Sim2Core({problem,onComplete,addLog}){
+      const[it,si]=useState(0);const[cd,sc]=useState('');const[lc,sl]=useState(false);
+      const reset=()=>{si(0);sl(false);addLog('Sistema reiniciado');};
+      const run=()=>{
+        if(lc)return;
+        if(cd==='1234'||cd==='NFC_TOKEN'){
+          addLog('OR -> VERDADERO');addLog('Acceso concedido.','success');sl(true);onComplete();
+        }else{
+          const n=it+1;si(n);
+          addLog('OR -> FALSO','error');addLog('Intento '+n+'/3','error');
+          if(n>=3){addLog('Puerta bloqueada.','error');sl(true);onComplete();}
+        }
+        sc('');
+      };
+      return E('div',{cn:'space-y-3 animate-fade-in'},
+        E('div',{cn:'bg-slate-800/60 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-400 space-y-1'},
+          E('p',null,'1. Escribe el código "1234" o "NFC_TOKEN" para probar acceso.'),
+          E('p',null,'2. Presiona "Probar" para validar con el OR lógico.'),
+          E('p',null,'3. Tienes 3 intentos; si fallas, la puerta se bloquea.')
+        ),
+        E('p',{cn:'text-slate-300 text-sm'},'3 intentos. Clave: 1234 o NFC_TOKEN.'),
+        E('div',{cn:'flex flex-col sm:flex-row gap-2 items-end'},
+          E('div',{cn:'flex-1 w-full'},
+            E('label',{cn:'block text-sm text-slate-400 mb-1'},'Codigo/Tarjeta'),
+            E('input',{disabled:lc,type:'text',value:cd,onChange:e=>sc(e.target.value),cn:'w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white focus:outline-none focus:border-emerald-500 disabled:opacity-50'})
+          ),
+          E('button',{disabled:lc,onClick:run,cn:'bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white px-6 py-3 rounded-lg font-bold transition'},'Probar'),
+          E('button',{onClick:reset,cn:'bg-slate-700 hover:bg-slate-600 text-white px-4 py-3 rounded-lg transition'},'Reiniciar')
+        ),
+        E('div',{cn:'text-sm font-mono text-slate-400'},'intentos = '+it)
+      );
+    }
+    function Sim3Core({problem,onComplete,addLog}){
+      const[dist,sDist]=useState(85);
+      const run=()=>{
+        addLog('Sensor: '+dist+'cm');
+        if(dist<30){
+          addLog(dist+'<30 -> VERDADERO');
+          addLog('Letrero: OCUPADO','error');
+        }else{
+          addLog(dist+'<30 -> FALSO');
+          addLog('Letrero: LIBRE','success');
+        }
+        addLog('Esperar 10 seg...');onComplete();
+      };
+      return E('div',{cn:'space-y-3 animate-fade-in'},
+        E('div',{cn:'bg-slate-800/60 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-400 space-y-1'},
+          E('p',null,'1. Desliza para cambiar la distancia medida por el sensor ultrasónico.'),
+          E('p',null,'2. Presiona "Monitorear" para evaluar la condición.'),
+          E('p',null,'3. Si distancia < 30cm → "OCUPADO"; si no → "LIBRE".')
+        ),
+        E('p',{cn:'text-slate-300 text-sm'},'Desliza para cambiar distancia (umbral: 30cm).'),
+        E('div',null,
+          E('label',{cn:'block text-sm text-slate-400 mb-2'},'Distancia: '+dist+'cm'),
+          E('input',{type:'range',min:0,max:150,value:dist,onChange:e=>sDist(parseInt(e.target.value)),cn:'w-full accent-green-500'})
+        ),
+        E('button',{onClick:run,cn:'bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-lg font-bold transition w-full sm:w-64 mx-auto block flex items-center justify-center gap-2'},
+          E(Icon,{name:'Play',size:18}),'Monitorear')
+      );
+    }
+    function Sim4Core({problem,onComplete,addLog}){
+      const[st,sst]=useState(20);const[op,sop]=useState('Entrada');const[cant,sct]=useState('');
+      const run=()=>{
+        const c=parseInt(cant);
+        if(isNaN(c)||c<0){addLog('Error cantidad','error');return;}
+        let ns=st;
+        if(op==='Entrada'){addLog('op==\"Entrada\" -> V');ns+=c;addLog('stock='+st+'+'+c);}
+        else{addLog('op==\"Entrada\" -> F(Sino)');ns-=c;addLog('stock='+st+'-'+c);}
+        sst(ns);addLog('Stock: '+ns,'success');
+        if(ns<5)addLog('ALERTA CRITICA!','error');else addLog('Stock OK');
+        onComplete();
+      };
+      return E('div',{cn:'space-y-3 animate-fade-in'},
+        E('div',{cn:'bg-slate-800/60 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-400 space-y-1'},
+          E('p',null,'1. Elige "Entrada" (sumar) o "Salida" (restar) y escribe una cantidad.'),
+          E('p',null,'2. Presiona "Ejecutar" y observa cómo cambia el stock.'),
+          E('p',null,'3. Si el stock baja de 5, se activa la ALERTA CRÍTICA.')
+        ),
+        E('p',{cn:'text-slate-300 text-sm'},'Gestiona inventario.'),
+        E('div',{cn:'text-xl font-mono text-yellow-400 border-b border-slate-700 pb-2 inline-block'},'stock_actual = '+st),
+        E('div',{cn:'flex flex-col sm:flex-row gap-4 items-end'},
+          E('div',{cn:'w-full sm:w-1/3'},
+            E('label',{cn:'block text-sm text-slate-400 mb-1'},'operacion'),
+            E('select',{value:op,onChange:e=>sop(e.target.value),cn:'w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white'},
+              E('option',{value:'Entrada'},'Entrada'),E('option',{value:'Salida'},'Salida'))
+          ),
+          E('div',{cn:'w-full sm:w-1/3'},
+            E('label',{cn:'block text-sm text-slate-400 mb-1'},'cantidad'),
+            E('input',{type:'number',value:cant,onChange:e=>sct(e.target.value),cn:'w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white',placeholder:'5'})
+          ),
+          E('button',{onClick:run,cn:'w-full sm:w-1/3 bg-yellow-600 hover:bg-yellow-500 text-white px-6 py-3 rounded-lg font-bold transition'},'Ejecutar')
+        )
+      );
+    }
+    function Sim5Core({problem,onComplete,addLog}){
+      const[ps,sps]=useState('');const[act,sact]=useState('1');
+      const run=()=>{
+        const p=parseFloat(ps);if(isNaN(p)){addLog('Error peso','error');return;}
+        const a=parseInt(act);let cal=0;
+        if(a===1){addLog('act==1 -> V');cal=2000;addLog('cal=2000');}
+        else{addLog('act==1 -> F');cal=2500;addLog('cal=2500');}
+        if(p>90){addLog('peso>90 -> V','success');addLog('Reduccion: '+(cal-500),'success');}
+        else if(p<60){addLog('peso<60 -> V','success');addLog('Aumento: '+(cal+500),'success');}
+        else{addLog('Todas F -> Mantenimiento');addLog('Objetivo: '+cal);}
+        onComplete();
+      };
+      return E('div',{cn:'space-y-3 animate-fade-in'},
+        E('div',{cn:'bg-slate-800/60 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-400 space-y-1'},
+          E('p',null,'1. Ingresa tu peso en kg y selecciona nivel de actividad (1-Baja / 2-Alta).'),
+          E('p',null,'2. Presiona "Ejecutar" para calcular tu objetivo calórico.'),
+          E('p',null,'3. El algoritmo usa Si-SinoSi-Sino: peso>90 → reduce, peso<60 → aumenta, sino mantén.')
+        ),
+        E('p',{cn:'text-slate-300 text-sm'},'Prueba Si-SinoSi-Sino.'),
+        E('div',{cn:'grid grid-cols-1 sm:grid-cols-2 gap-4'},
+          E('div',null,
+            E('label',{cn:'block text-sm text-slate-400 mb-1'},'peso (kg)'),
+            E('input',{type:'number',value:ps,onChange:e=>sps(e.target.value),cn:'w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white',placeholder:'75'})
+          ),
+          E('div',null,
+            E('label',{cn:'block text-sm text-slate-400 mb-1'},'actividad'),
+            E('select',{value:act,onChange:e=>sact(e.target.value),cn:'w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white'},
+              E('option',{value:'1'},'1-Baja'),E('option',{value:'2'},'2-Alta'))
+          )
+        ),
+        E('button',{onClick:run,cn:'w-full mt-4 bg-pink-600 hover:bg-pink-500 text-white px-6 py-3 rounded-lg font-bold transition'},'Ejecutar')
+      );
+    }
+
+    const simComps={1:Sim1Core,2:Sim2Core,3:Sim3Core,4:Sim4Core,5:Sim5Core};
+
+    const SimComp=simComps[problem.id];
+    return React.createElement('div',null,
+      React.createElement('h3',{className:'text-xl font-bold text-white mb-4 flex items-center'},React.createElement(Icon,{name:'Terminal',size:20,className:'mr-2'}),' Consola de Simulación'),
+      SimComp?React.createElement(SimComp,{problem,onComplete,addLog}):null,
+      React.createElement(CW)
+    );
+  }
+
+  // ===== QUIZ =====
+  function QuizEngine({problem,completed,onComplete}){
+    const[ans,setAns]=useState({});const[sub,setSub]=useState(false);
+    useEffect(()=>{setAns({});setSub(completed||false)},[problem.id,completed]);
+    const submit=()=>{if(sub)return;let c=0;problem.questions.forEach((q,i)=>{if(ans[i]===q.answer)c++});setSub(true);if(!completed)onComplete(c*50)};
+    return React.createElement('div',{className:'animate-fade-in max-w-2xl mx-auto space-y-6 pb-8'},
+      React.createElement('div',{className:'text-center mb-8'},React.createElement('h3',{className:'text-2xl font-bold text-white mb-2'},'Reto Analítico'),React.createElement('p',{className:'text-slate-400'},'Demuestra tu comprensión.'),completed?React.createElement('div',{className:'mt-4 inline-flex px-4 py-2 bg-emerald-900/50 rounded-full text-emerald-400 font-bold items-center gap-2'},React.createElement(Icon,{name:'CheckCircle',size:18}),'Superado'):null),
+      problem.questions.map((q,qi)=>React.createElement('div',{key:qi,className:'bg-slate-800/80 p-6 rounded-xl border border-slate-700 shadow-lg'},
+        React.createElement('p',{className:'font-semibold text-lg mb-4 text-white'},(qi+1)+'. '+q.q),
+        React.createElement('div',{className:'space-y-3'},q.options.map((opt,oi)=>{const sel=ans[qi]===oi;const cor=sub&&q.answer===oi;const wr=sub&&sel&&q.answer!==oi;let cls='w-full text-left p-4 rounded-lg border transition-all duration-200 ';if(!sub)cls+=sel?'bg-slate-700 border-emerald-500 text-white':'bg-slate-900 border-slate-700 hover:border-slate-500 text-slate-300';else if(cor)cls+='bg-emerald-900/40 border-emerald-500 text-emerald-300 font-bold';else if(wr)cls+='bg-red-900/40 border-red-500 text-red-300';else cls+='bg-slate-900 border-slate-700 text-slate-500 opacity-50';return React.createElement('button',{key:oi,disabled:sub,onClick:()=>setAns({...ans,[qi]:oi}),className:cls},React.createElement('div',{className:'flex items-center'},React.createElement('span',{className:'flex-1'},opt),cor?React.createElement(Icon,{name:'CheckCircle',size:18,className:'text-emerald-500'}):null,wr?React.createElement(Icon,{name:'XCircle',size:18,className:'text-red-500'}):null))}))
+      )),
+      !sub?React.createElement('button',{onClick:submit,disabled:Object.keys(ans).length!==problem.questions.length,className:'w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold py-4 rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed'},'Enviar y Reclamar XP'):null
+    );
+  }
+
+  // ===== APP =====
+  function App(){
+    const[cp,setCp]=useState(PROBLEMAS[0]);
+    const[score,setScore]=useState(0);
+    const[tab,setTab]=useState('pseudocode');
+    const[cl,setCl]=useState({});
+    const[cq,setCq]=useState({});
+    const addXP=(p)=>setScore(s=>s+p);
+    const markDone=(id)=>{if(!cl[id]){setCl(x=>({...x,[id]:true}));addXP(100);}};
+
+    const tabs=[
+      {key:'pseudocode',icon:'Code',label:'Enunciado y Código'},
+      {key:'truth',icon:'Network',label:'Árbol de Verdad'},
+      {key:'diagram',icon:'GitMerge',label:'Diagrama'},
+      {key:'simulator',icon:'Play',label:'Simulador'},
+      {key:'quiz',icon:'CheckCircle',label:'Reto'}
+    ];
+
+    const renderContent=()=>{
+      switch(tab){
+        case'pseudocode':
+          return React.createElement('div',{className:'animate-fade-in space-y-6'},
+            React.createElement('div',{className:'bg-slate-800/80 border border-slate-700 p-6 rounded-xl shadow-lg relative overflow-hidden'},
+              React.createElement('div',{className:'absolute top-0 left-0 w-1 h-full bg-blue-500'}),
+              React.createElement('h3',{className:'text-lg font-bold text-white mb-2 flex items-center'},React.createElement(Icon,{name:'Info',size:20,className:'mr-2 text-blue-400'}),' Enunciado'),
+              React.createElement('p',{className:'text-slate-300 leading-relaxed text-sm md:text-base'},cp.statement)
+            ),
+            React.createElement('div',null,
+              React.createElement('h3',{className:'text-xl font-bold text-white mb-4 flex items-center'},React.createElement(Icon,{name:'Code',size:20,className:'mr-2 text-emerald-400'}),' Pseudocódigo'),
+              React.createElement('pre',{className:'bg-[#0d1117] p-6 rounded-xl overflow-x-auto font-mono text-sm border border-slate-800 shadow-inner',dangerouslySetInnerHTML:{__html:highlightPseudo(cp.pseudo.toUpperCase())}})
+            ),
+            cp.explicacion?React.createElement('div',{className:'bg-slate-800/60 border border-slate-700/50 rounded-xl p-5 space-y-2'},
+              React.createElement('h4',{className:'text-base font-bold text-cyan-400 flex items-center gap-2 mb-3'},React.createElement(Icon,{name:'Info',size:16}),'Explicación paso a paso'),
+              cp.explicacion.map((ex,i)=>React.createElement('div',{key:i,className:'flex gap-3 text-sm text-slate-300'},
+                React.createElement('span',{className:'text-cyan-500 font-bold shrink-0 w-5'},i+1+'.'),
+                React.createElement('span',null,ex)
+              ))
+            ):null
+          );
+        case'truth':
+          return React.createElement('div',{className:'animate-fade-in space-y-6'},
+            React.createElement('div',{className:'bg-slate-800/80 border border-slate-700 p-6 rounded-xl shadow-lg relative overflow-hidden'},
+              React.createElement('div',{className:'absolute top-0 left-0 w-1 h-full bg-purple-500'}),
+              React.createElement('h3',{className:'text-xl font-bold text-white mb-2 flex items-center'},React.createElement(Icon,{name:'Network',size:24,className:'mr-2 text-purple-400'}),' ',cp.truthData.title),
+              React.createElement('p',{className:'text-slate-300'},'Analiza cómo las computadoras evalúan condiciones (V/F) para tomar decisiones.')
+            ),
+            React.createElement(CanvasTruthTree,{tree:cp.truthTree,onComplete:()=>markDone(cp.id)}),
+            React.createElement('div',{className:'flex items-center gap-3'},React.createElement('div',{className:'flex-1 h-px bg-slate-700'}),React.createElement('span',{className:'text-slate-500 text-sm font-mono'},'vs'),React.createElement('div',{className:'flex-1 h-px bg-slate-700'})),
+            React.createElement('div',{className:'space-y-3'},
+              React.createElement('h4',{className:'text-lg font-bold text-purple-400 flex items-center'},React.createElement(Icon,{name:'Info',size:18,className:'mr-2'}),' Tabla de Verdad (Lógica)'),
+              React.createElement(TruthTable,{data:cp.truthData})
+            )
+          );
+        case'diagram':
+          return React.createElement('div',{className:'animate-fade-in space-y-4'},
+            React.createElement(CanvasFlowchart,{flow:cp.flowChart,onComplete:()=>markDone(cp.id)})
+          );
+        case'simulator':
+          return React.createElement(SimulatorEngine,{problem:cp,onComplete:()=>markDone(cp.id)});
+        case'quiz':
+          return React.createElement(QuizEngine,{problem:cp,completed:cq[cp.id],onComplete:(s)=>{setCq(x=>({...x,[cp.id]:true}));addXP(s)}});
+        default:return null;
+      }
+    };
+
+    return React.createElement('div',{className:'min-h-screen bg-slate-950 text-slate-200 font-sans p-4 md:p-8'},
+      // Header
+      React.createElement('div',{className:'flex flex-col md:flex-row justify-between items-center mb-4 bg-slate-900 p-4 rounded-xl border border-slate-700 shadow-lg'},
+        React.createElement('div',null,
+          React.createElement('h1',{className:'text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500'},'Simulador Algorítmico'),
+          React.createElement('p',{className:'text-xs text-slate-400 mt-0.5'},'Laboratorio de Lógica - ',React.createElement('span',{className:'text-emerald-400 font-semibold'},'Prof. Ing. Angel Rodriguez'))
+        ),
+        React.createElement('div',{className:'mt-2 md:mt-0 flex items-center bg-slate-800 px-4 py-2 rounded-full border border-slate-600 shadow-inner'},
+          React.createElement(Icon,{name:'Trophy',size:18,className:'text-yellow-400 mr-2 animate-pulse'}),
+          React.createElement('span',{className:'text-lg font-bold text-white'},score,' ',React.createElement('span',{className:'text-xs text-slate-400 font-normal'},'XP'))
+        )
+      ),
+      // Grid
+      React.createElement('div',{className:'grid grid-cols-1 lg:grid-cols-4 gap-4'},
+        // Sidebar
+        React.createElement('div',{className:'lg:col-span-1 space-y-2'},
+          React.createElement('h2',{className:'text-base font-bold text-slate-300 mb-2 px-2'},'Módulos'),
+          PROBLEMAS.map(p=>React.createElement('button',{
+            key:p.id,onClick:()=>{setCp(p);setTab('pseudocode')},
+            className:`w-full text-left p-3 rounded-xl transition-all duration-200 flex items-center justify-between border ${cp.id===p.id?'bg-slate-800 border-emerald-500':'bg-slate-900 border-slate-700 hover:bg-slate-800 hover:border-slate-500'}`
+          },
+            React.createElement('div',{className:'flex items-center space-x-2'},
+              React.createElement('div',{className:`p-1.5 rounded-lg ${cp.id===p.id?'bg-slate-700':'bg-slate-800'}`},React.createElement(Icon,{name:p.icon,size:16,className:p.iconColor})),
+              React.createElement('div',null,React.createElement('div',{className:'text-xs text-slate-400'},'Problema '+p.id),React.createElement('div',{className:'font-semibold text-slate-200 text-xs'},p.title))
+            ),
+            cl[p.id]?React.createElement(Icon,{name:'CheckCircle',size:14,className:'text-emerald-500'}):null
+          ))
+        ),
+        // Content
+        React.createElement('div',{className:'lg:col-span-3 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden flex flex-col shadow-xl'},
+          React.createElement('div',{className:'flex border-b border-slate-700 bg-slate-800/50 flex-wrap'},tabs.map(t=>React.createElement(TabButton,{key:t.key,icon:t.icon,label:t.label,active:tab===t.key,onClick:()=>setTab(t.key)}))),
+          React.createElement('div',{className:'p-4 flex-grow overflow-y-auto',style:{minHeight:'450px',background:'radial-gradient(ellipse at top, #1e293b, #0f172a, #020617)'}},renderContent())
+        )
+      )
+    );
+  }
+
+  // ===== MOUNT =====
+  ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+  </script>
+</body>
+</html>

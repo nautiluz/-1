@@ -1,0 +1,177 @@
+{
+  "name": "Sistemas 4A - Citas IA + Diagnóstico Visual",
+  "nodes": [
+    {
+      "name": "Webhook Citas IA",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 400],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sistemas4a-citas-ia",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "name": "Recibir Datos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [500, 400],
+      "parameters": {
+        "jsCode": "// Extraer datos del cliente y archivo\nconst body = $input.first().json;\n\n// Datos del formulario\nconst nombre = body.nombre || 'Cliente';\nconst telefono = body.telefono || '';\nconst problema = body.problema || 'Consulta General';\nconst servicio = body.servicio || 'soporte';\nconst fechaSolicitada = body.fecha || null;\n\n// Imagen en base64 si existe\nconst imagenBase64 = body.imagen || null;\nconst tipoImagen = body.tipo_imagen || 'image/jpeg';\n\n// Generar ID único\nconst id = Date.now().toString();\n\nreturn {\n  json: {\n    id,\n    nombre,\n    telefono,\n    problema,\n    servicio,\n    fechaSolicitada,\n    imagenBase64,\n    tipoImagen,\n    contactoWA: telefono.replace(/\\D/g, ''),\n    timestamp: new Date().toISOString()\n  }\n};"
+      }
+    },
+    {
+      "name": "¿Hay Imagen?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [750, 400],
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "string": [
+            {
+              "value1": "={{ $json.imagenBase64 }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "inputs": ["Recibir Datos"]
+    },
+    {
+      "name": "Diagnóstico IA (Con Imagen)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 300],
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "method": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contents",
+              "value": "=[{\"parts\":[{\"text\":\"Eres el Ing. Angel Rodriguez de Sistemas 4A. Analiza esta imagen del problema del cliente y proporciona:\\n\\n1. *DIAGNÓSTICO*: Identifica el problema técnico exacto\\n2. *CAUSA RAÍZ*: Por qué ocurrió\\n3. *SOLUCIÓN*: Pasos para resolver\\n4. *URGENCIA*: baja/media/alta (basado en impacto de negocio)\\n5. *SERVICIO RECOMENDADO*: soporte/infra/cyber/ia\\n\\nCliente: {{ $json.nombre }}\\nProblema reportado: {{ $json.problema }}\\nServicio actual: {{ $json.servicio }}\"},{\"inline_data\":{\"mime_type\":\"{{ $json.tipoImagen }}\",\"data\":\"{{ $json.imagenBase64 }}\"}}]}]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {},
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Clasificar sin Imagen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 500],
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "method": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contents",
+              "value": "=[{\"parts\":[{\"text\":\"Eres el Ing. Angel Rodriguez de Sistemas 4A. Analiza este caso y proporciona:\\n\\n1. *DIAGNÓSTICO*: Análisis del problema\\n2. *SOLUCIÓN*: Pasos recomendados\\n3. *URGENCIA*: baja/media/alta\\n4. *SERVICIO*: soporte/infra/cyber/ia\\n5. *DURACIÓN ESTIMADA*: minutos\\n\\nCliente: {{ $json.nombre }}\\nProblema: {{ $json.problema }}\"}]}]"
+            }
+          ]
+        }
+      },
+      "credentials": {}
+    },
+    {
+      "name": "Procesar Diagnóstico",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [1250, 400],
+      "parameters": {
+        "jsCode": "// Procesar respuesta de IA y extraer información\nconst input = $input.first().json;\nlet diagnostico = '';\nlet urgencia = 'media';\nlet servicio = $input.item.json.servicio || 'soporte';\nlet duracion = 30;\n\ntry {\n  if (input.candidates && input.candidates[0]?.content?.parts[0]?.text) {\n    const texto = input.candidates[0].content.parts[0].text;\n    diagnostico = texto;\n    \n    // Extraer urgencia\n    if (texto.includes('urgencia')) {\n      if (texto.toLowerCase().includes('alta')) urgencia = 'alta';\n      else if (texto.toLowerCase().includes('baja')) urgencia = 'baja';\n    }\n    \n    // Extraer servicio recomendado\n    if (texto.toLowerCase().includes('cyber')) servicio = 'cyber';\n    else if (texto.toLowerCase().includes('infra')) servicio = 'infra';\n    else if (texto.toLowerCase().includes('ia') || texto.toLowerCase().includes('automatiz')) servicio = 'ia';\n    else servicio = 'soporte';\n    \n    // Extraer duración\n    const durMatch = texto.match(/(\\d+)\\s*(min|hora)/i);\n    if (durMatch) {\n      duracion = durMatch[2].toLowerCase().includes('hora') ? parseInt(durMatch[1]) * 60 : parseInt(durMatch[1]);\n    }\n  }\n} catch (e) {\n  diagnostico = 'Análisis en proceso. Contacte a Sistemas 4A.';\n}\n\n// Combinar con datos originales\nconst original = $('Recibir Datos').first().json;\n\nreturn {\n  json: {\n    ...original,\n    diagnostico,\n    urgencia,\n    servicio,\n    duracion,\n    requiereVisita: urgencia === 'alta'\n  }\n};"
+      },
+      "inputs": [
+        {
+          "node": "Diagnóstico IA (Con Imagen)",
+          "type": "main"
+        },
+        {
+          "node": "Clasificar sin Imagen",
+          "type": "main"
+        }
+      ]
+    },
+    {
+      "name": "Sugerir Mejor Horario",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [1500, 400],
+      "parameters": {
+        "jsCode": "// Sugerir el mejor horario basado en urgencia y disponibilidad\nconst data = $input.first().json;\n\nlet fechaSugerida;\nconst fechaInput = data.fechaSolicitada;\n\nif (fechaInput && new Date(fechaInput) > new Date()) {\n  fechaSugerida = new Date(fechaInput);\n} else {\n  // Si no hay fecha o está en pasado, sugerir próximo disponible\n  fechaSugerida = new Date();\n  fechaSugerida.setHours(fechaSugerida.getHours() + 2);\n  if (fechaSugerida.getHours() >= 18) {\n    fechaSugerida.setDate(fechaSugerida.getDate() + 1);\n    fechaSugerida.setHours(9, 0, 0, 0);\n  }\n}\n\nconst duracionMs = (data.duracion || 30) * 60 * 1000;\nconst fechaFin = new Date(fechaSugerida.getTime() + duracionMs);\n\n// Mensaje según urgencia\nlet prioridadMsg = '';\nswitch(data.urgencia) {\n  case 'alta': prioridadMsg = '🔴 URGENTE - Requiere atención inmediata'; break;\n  case 'media': prioridadMsg = '🟡 Prioridad normal'; break;\n  case 'baja': prioridadMsg = '🟢 Programación flexible'; break;\n}\n\nreturn {\n  json: {\n    ...data,\n    fechaInicio: fechaSugerida.toISOString(),\n    fechaFin: fechaFin.toISOString(),\n    prioridadMsg,\n    tituloEvento: `${data.servicio.toUpperCase()} - ${data.nombre}`\n  }\n};"
+      },
+      "inputs": ["Procesar Diagnóstico"]
+    },
+    {
+      "name": "Crear Evento Calendar",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 3,
+      "position": [1750, 300],
+      "parameters": {
+        "operation": "create",
+        "calendar": "primary",
+        "title": "={{ $json.tituloEvento }}",
+        "start": "={{ $json.fechaInicio }}",
+        "end": "={{ $json.fechaFin }}",
+        "description": "={{ $json.prioridadMsg }}\\n\\n📋 *Diagnóstico IA:*\\n{{ $json.diagnostico }}\\n\\n👤 Cliente: {{ $json.nombre }}\\n📞 Tel: {{ $json.telefono }}\\n🛠️ Servicio: {{ $json.servicio }}\\n⏱️ Duración: {{ $json.duracion }} min",
+        "options": {
+          "location": "={{ $json.requiereVisita ? 'Requiere Visita Técnica' : 'Consulta Virtual' }}"
+        }
+      },
+      "credentials": {
+        "googleCalendarOAuth2Api": ""
+      }
+    },
+    {
+      "name": "Confirmar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1750, 500],
+      "parameters": {
+        "url": "=https://wa.me/58{{ $json.contactoWA }}?text={{ encodeURIComponent('✅ *Sistemas 4A - Cita Confirmada*\\n\\n👤 ' + $json.nombre + '\\n📅 ' + $json.fechaInicio.slice(0,16).replace('T', ' ') + '\\n⏱️ Duración: ' + $json.duracion + ' min\\n🛠️ Servicio: ' + $json.servicio + '\\n\\n' + $json.prioridadMsg + '\\n\\nSu diagnóstico IA está siendo preparado. ¡Hasta pronto!') }}",
+        "method": "GET",
+        "options": {}
+      }
+    },
+    {
+      "name": "Notificar a Angel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1750, 700],
+      "parameters": {
+        "url": "=https://wa.me/584120317421?text={{ encodeURIComponent('🔔 *Nueva Cita IA*\\n\\nCliente: ' + $json.nombre + '\\nTel: ' + $json.telefono + '\\nUrgencia: ' + $json.urgencia + '\\nServicio: ' + $json.servicio + '\\n\\n📋 Diagnóstico:\\n' + $json.diagnostico.slice(0,500)) }}",
+        "method": "GET"
+      }
+    }
+  ],
+  "connections": {
+    "¿Hay Imagen?": {
+      "main": [
+        [["Diagnóstico IA (Con Imagen)"]],
+        [["Clasificar sin Imagen"]]
+      ]
+    },
+    "Procesar Diagnóstico": {
+      "main": [["Sugerir Mejor Horario"]]
+    },
+    "Sugerir Mejor Horario": {
+      "main": [["Crear Evento Calendar"], ["Confirmar WhatsApp"], ["Notificar a Angel"]]
+    },
+    "Crear Evento Calendar": {
+      "main": [["Confirmar WhatsApp"]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["sistemas4a", "citas", "ia", "diagnostico"],
+  "triggerCount": 0
+}

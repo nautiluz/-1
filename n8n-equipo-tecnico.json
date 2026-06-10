@@ -1,0 +1,240 @@
+{
+  "name": "Sistemas 4A - Equipo Técnico IA + Agendamiento",
+  "nodes": [
+    {
+      "name": "Webhook Equipo Técnico",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 400],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sistemas4a-equipo-tecnico",
+        "responseMode": "onReceived"
+      }
+    },
+    {
+      "name": "Recibir Caso",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [500, 400],
+      "parameters": {
+        "jsCode": "// Recibir caso del cliente\nconst body = $input.first().json;\n\nconst sessionId = body.session_id || crypto.randomUUID();\nconst nombre = body.nombre || 'Cliente';\nconst telefono = body.telefono || '';\nconst problema = body.problema || '';\nconst servicio = body.servicio || 'soporte';\nconst imagen = body.imagen || null;\nconst tipoImagen = body.tipo_imagen || 'image/jpeg';\n\n// Generar ID de caso\nconst casoId = '4A-' + Date.now().toString(36).toUpperCase();\n\nreturn {\n  json: {\n    casoId,\n    sessionId,\n    nombre,\n    telefono,\n    problema,\n    servicio,\n    imagen,\n    tipoImagen,\n    contactoWA: telefono.replace(/\\D/g, ''),\n    timestamp: new Date().toISOString(),\n    estado: 'triage',\n    diagnostico: {}\n  }\n};"
+      }
+    },
+    {
+      "name": "Agente Triaje",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 200],
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "method": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contents",
+              "value": "=[{\"parts\":[{\"text\":\"Eres el AGENTE TRIAGE de Sistemas 4A. Tu rol es CLASIFICAR el problema del cliente.\\n\\n📋 CASO: {{ $json.casoId }}\\n📝 Problema: {{ $json.problema }}\\n🛠️ Servicio: {{ $json.servicio }}\\n{{ $json.imagen ? '📎 Imagen adjunta: SÍ' : '📎 Imagen: NO' }}\\n\\n🎯 TAREA:\\nAnaliza el problema y determina:\\n\\n1. **ÁREA**: hardware/software/redes/seguridad/multiple\\n2. **COMPLEJIDAD**: baja/media/alta/crítica\\n3. **URGENCIA**: baja/media/alta (basado en impacto de negocio)\\n4. **EQUIPOS NECESARIOS**: Lista de agentes que deben intervenir\\n\\n📄 FORMATO JSON:\\n{\\\"area\\\": \\\"\\\", \\\"complejidad\\\": \\\"\\\", \\\"urgencia\\\": \\\"\\\", \\\"equipos\\\": [], \\\"resumen_triage\\\": \\\"\\\"}\"}]}]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Agente Hardware",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 400],
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "method": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contents",
+              "value": "=[{\"parts\":[{\"text\":\"Eres el AGENTE HARDWARE de Sistemas 4A. Analiza componentes físicos.\\n\\n📋 CASO: {{ $json.casoId }}\\n📝 Problema: {{ $json.problema }}\\n{{ $json.imagen ? '📎 Imagen adjunta - ANALIZA DETENIDAMENTE' : '' }}\\n\\n🔧 ANALIZA:\\n1. ¿Es problema de hardware (fuente, disco, RAM, motherboard, periféricos)?\\n2. ¿Qué componentes podrían estar afectados?\\n3. ¿Requiere intervención física o reemplazo?\\n4. ¿Tiempo estimado de diagnóstico físico?\\n\\n📄 JSON:\\n{\\\"hardware\\\": true/false, \\\"componentes\\\": [], \\\"acciones\\\": [], \\\"tiempo_min\\\": number}\"}]}]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Agente Software",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 600],
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "method": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contents",
+              "value": "=[{\"parts\":[{\"text\":\"Eres el AGENTE SOFTWARE de Sistemas 4A. Analiza sistemas operativos y aplicaciones.\\n\\n📋 CASO: {{ $json.casoId }}\\n📝 Problema: {{ $json.problema }}\\n{{ $json.imagen ? '📎 Imagen adjunta - IDENTIFICA ERRORES EN PANTALLA' : '' }}\\n\\n💻 ANALIZA:\\n1. ¿Es problema de software (Windows, Linux, apps, drivers)?\\n2. ¿Qué sistema operativo o aplicación está involucrada?\\n3. ¿Es error de sistema, aplicación o configuración?\\n4. ¿Solución requiere reinstalación, actualización o configuración?\\n\\n📄 JSON:\\n{\\\"software\\\": true/false, \\\"so\\\": \\\"\\\", \\\"apps\\\": [], \\\"tipo_error\\\": \\\"\\\", \\\"tiempo_min\\\": number}\"}]}]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Agente Redes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 300],
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "method": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contents",
+              "value": "=[{\"parts\":[{\"text\":\"Eres el AGENTE REDES de Sistemas 4A. Analiza conectividad y networking.\\n\\n📋 CASO: {{ $json.casoId }}\\n📝 Problema: {{ $json.problema }}\\n\\n🌐 ANALIZA:\\n1. ¿Es problema de red (WiFi, LAN, Internet, VPN)?\\n2. ¿Es conectividad local o hacia internet?\\n3. ¿Requiere configuración de router/switch/firewall?\\n4. ¿Hay fallas de DNS, IP o puertos?\\n\\n📄 JSON:\\n{\\\"redes\\\": true/false, \\\"tipo_conexion\\\": \\\"\\\", \\\"equipos_red\\\": [], \\\"tiempo_min\\\": number}\"}]}]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Agente Seguridad",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 500],
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "method": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contents",
+              "value": "=[{\"parts\":[{\"text\":\"Eres el AGENTE SEGURIDAD de Sistemas 4A. Analiza vulnerabilidades y amenazas.\\n\\n📋 CASO: {{ $json.casoId }}\\n📝 Problema: {{ $json.problema }}\\n{{ $json.imagen ? '📎 Imagen - BUSCA INDICIOS DE AMENAZAS' : '' }}\\n\\n🔐 ANALIZA:\\n1. ¿Es problema de seguridad (virus, malware, acceso no autorizado)?\\n2. ¿Hay indicadores de ransomware, phishing o hack?\\n3. ¿Requiere análisis forense o recuperación de datos?\\n4. ¿Nivel de criticidad de los datos afectados?\\n\\n📄 JSON:\\n{\\\"seguridad\\\": true/false, \\\"tipo_amenaza\\\": \\\"\\\", \\\"nivel_critico\\\": \\\"\\\", \\\"tiempo_min\\\": number}\"}]}]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Consolidador de Diagnóstico",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [1250, 400],
+      "parameters": {
+        "jsCode": "// Consolidar análisis de todos los agentes\nconst datosOriginal = $('Recibir Caso').first().json;\n\nlet agentes = {\n  triage: { area: 'media', complejidad: 'media', urgencia: 'media', equipos: [], resumen: '' },\n  hardware: { detectado: false, componentes: [], acciones: [], tiempo: 30 },\n  software: { detectado: false, so: '', apps: [], tipo_error: '', tiempo: 30 },\n  redes: { detectado: false, tipo_conexion: '', equipos: [], tiempo: 20 },\n  seguridad: { detectado: false, amenaza: '', critico: 'bajo', tiempo: 45 }\n};\n\n// Procesar cada agente\nconst nodos = $input.all();\nnodos.forEach(nodo => {\n  const nombre = nodo.json.nombre || '';\n  if (nombre.includes('Triaje')) {\n    try { agentes.triage = JSON.parse(nodo.json.texto); } catch(e) {}\n  } else if (nombre.includes('Hardware')) {\n    try { agentes.hardware = JSON.parse(nodo.json.texto); } catch(e) {}\n  } else if (nombre.includes('Software')) {\n    try { agentes.software = JSON.parse(nodo.json.texto); } catch(e) {}\n  } else if (nombre.includes('Redes')) {\n    try { agentes.redes = JSON.parse(nodo.json.texto); } catch(e) {}\n  } else if (nombre.includes('Seguridad')) {\n    try { agentes.seguridad = JSON.parse(nodo.json.texto); } catch(e) {}\n  }\n});\n\n// Determinar diagnóstico final\nconst areasDetectadas = [];\nif (agentes.hardware.hardware) areasDetectadas.push('Hardware');\nif (agentes.software.software) areasDetectadas.push('Software');\nif (agentes.redes.redes) areasDetectadas.push('Redes');\nif (agentes.seguridad.seguridad) areasDetectadas.push('Seguridad');\n\n// Calcular urgencia máxima\nconst urgencias = [agentes.triage.urgencia];\nif (agentes.seguridad.nivel_critico === 'alto') urgencias.push('alta');\nconst urgenciaMax = urgencias.includes('alta') ? 'alta' : (urgencias.includes('media') ? 'media' : 'baja');\n\n// Calcular tiempo total\nconst tiempoTotal = Math.max(\n  agentes.hardware.tiempo_min || 30,\n  agentes.software.tiempo_min || 30,\n  agentes.redes.tiempo_min || 20,\n  agentes.seguridad.tiempo_min || 45\n);\n\nreturn {\n  json: {\n    ...datosOriginal,\n    agentes,\n    areasDetectadas: areasDetectadas.join(', '),\n    urgencia: urgenciaMax,\n    duracion: tiempoTotal,\n    estado: 'diagnostico_listo',\n    requiere_multiple_agentes: areasDetectadas.length > 1,\n    necesita_visita: agentes.hardware.hardware || urgenciaMax === 'alta'\n  }\n};"
+      },
+      "inputs": [
+        {"node": "Agente Triaje", "type": "main"},
+        {"node": "Agente Hardware", "type": "main"},
+        {"node": "Agente Software", "type": "main"},
+        {"node": "Agente Redes", "type": "main"},
+        {"node": "Agente Seguridad", "type": "main"}
+      ]
+    },
+    {
+      "name": "Agente Síntesis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1500, 400],
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "method": "POST",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contents",
+              "value": "=[{\"parts\":[{\"text\":\"Eres el AGENTE SÍNTESIS de Sistemas 4A. Consolida el diagnóstico final del equipo técnico.\\n\\n📋 CASO: {{ $json.casoId }}\\n👤 Cliente: {{ $json.nombre }}\\n📝 Problema: {{ $json.problema }}\\n\\n🎯 TAREA:\\nGenera el DIAGNÓSTICO FINAL consolidado:\\n\\n1. **DIAGNÓSTICO PRINCIPAL**: Problema identificado\\n2. **ÁREAS AFECTADAS**: Lista de áreas\\n3. **CAUSA RAÍZ**: Por qué ocurrió\\n4. **SOLUCIÓN INTEGRAL**: Plan de acción completo\\n5. **DURACIÓN**: Tiempo total estimado\\n6. **URGENCIA**: baja/media/alta\\n7. **REQUIERE_VISITA**: sí/no\\n\\n📄 FORMATO JSON COMPLETO:\\n{\\\"diagnostico\\\": {\\\"principal\\\": \\\"\\\", \\\"areas\\\": [], \\\"causa\\\": \\\"\\\", \\\"solucion\\\": \\\"\\\", \\\"duracion\\\": 0, \\\"urgencia\\\": \\\"\\\", \\\"visita\\\": false }}\"}]}]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Preparar Citas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 3,
+      "position": [1750, 400],
+      "parameters": {
+        "jsCode": "// Preparar datos para agendamiento\nconst datos = $input.first().json;\n\n// Extraer diagnóstico de síntesis\nlet diag = { principal: '', areas: [], causa: '', solucion: '', duracion: 30, urgencia: 'media', visita: false };\n\ntry {\n  if (datos.sintesis?.candidates?.[0]?.content?.parts[0]?.text) {\n    const texto = datos.sintesis.candidates[0].content.parts[0].text;\n    const match = texto.match(/\\{[\\s\\S]*\\}/);\n    if (match) diag = JSON.parse(match[0]);\n  }\n} catch (e) {}\n\n// Calcular horarios (9 AM - 5 PM)\nconst ahora = new Date();\nconst opciones = [];\nconst horas = [9, 10, 11, 12, 13, 14, 15, 16];\n\nfor (let h of horas) {\n  const opt = new Date(ahora);\n  opt.setHours(h, 0, 0, 0);\n  if (opt > ahora && opciones.length < 3) opciones.push(opt.toISOString());\n}\n\n// Si es tarde (después de las 5 PM), agregar opciones para mañana\nif (opciones.length < 3) {\n  const manana = new Date(ahora);\n  manana.setDate(manana.getDate() + 1);\n  const mananaHoras = [9, 10, 11];\n  for (let h of mananaHoras) {\n    if (opciones.length >= 3) break;\n    const opt = new Date(manana);\n    opt.setHours(h, 0, 0, 0);\n    opciones.push(opt.toISOString());\n  }\n}\n\nconst duracion = diag.duracion || datos.duracion || 30;\nconst fechaSugerida = opciones[0];\nconst fechaFin = new Date(new Date(fechaSugerida).getTime() + duracion * 60000);\n\nconst emojiUrgencia = diag.urgencia === 'alta' ? '🔴' : (diag.urgencia === 'baja' ? '🟢' : '🟡');\n\nreturn {\n  json: {\n    ...datos,\n    diagnosticoFinal: diag,\n    fechaSugerida,\n    fechaFin: fechaFin.toISOString(),\n    duracion,\n    urgencia: diag.urgencia || datos.urgencia,\n    emojiUrgencia,\n    opcionesHorario: opciones,\n    requiere_visita: diag.visita || datos.necesita_visita,\n    areas: diag.areas?.join(', ') || datos.areasDetectadas,\n    titulo: `SISTEMAS 4A - ${datos.nombre}`,\n    descripcion: `${emojiUrgencia} *Diagnóstico del Equipo Técnico*\\n\\n📋 ${diag.principal || 'Análisis en proceso'}\\n\\n💡 *Causa:* ${diag.causa || 'Por determinar'}\\n\\n🔧 *Solución:* ${diag.solucion || 'Por definir'}\\n\\n⏱️ Duración: ${duracion} min\\n📍 ${diag.visita ? 'Requiere Visita Técnica' : 'Consulta Virtual'}`\n  }\n};"
+      }
+    },
+    {
+      "name": "Crear Evento Calendar",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 3,
+      "position": [2000, 300],
+      "parameters": {
+        "operation": "create",
+        "calendar": "primary",
+        "title": "={{ $json.titulo }}",
+        "start": "={{ $json.fechaSugerida }}",
+        "end": "={{ $json.fechaFin }}",
+        "description": "={{ $json.descripcion }}",
+        "options": {
+          "location": "={{ $json.requiere_visita ? 'Requiere Visita Técnica' : 'Consulta Virtual' }}"
+        }
+      },
+      "credentials": {
+        "googleCalendarOAuth2Api": ""
+      }
+    },
+    {
+      "name": "Notificar a Angel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2000, 450],
+      "parameters": {
+        "url": "=https://wa.me/584120317421?text={{ encodeURIComponent('🔔 *NUEVO CASO - Equipo Técnico 4A*\\n\\n📋 Caso: ' + $json.casoId + '\\n👤 Cliente: ' + $json.nombre + '\\n📱 Tel: ' + $json.telefono + '\\n📝 Problema: ' + $json.problema.slice(0,100) + '\\n\\n🧪 *Diagnóstico Equipo:*\\n• Áreas: ' + $json.areas + '\\n• Urgencia: ' + $json.urgencia + '\\n• Duración: ' + $json.duracion + ' min\\n• Visita: ' + ($json.requiere_visita ? 'SÍ' : 'NO') + '\\n\\n📋 ' + ($json.diagnosticoFinal?.principal || $json.diagnostico?.slice(0,300))) }}",
+        "method": "GET",
+        "options": {}
+      }
+    },
+    {
+      "name": "Confirmar Cliente con Opciones",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2000, 600],
+      "parameters": {
+        "url": "=https://wa.me/58{{ $json.contactoWA }}?text={{ encodeURIComponent('🧪 *Sistemas 4A - Diagnóstico Técnico Completado*\\n\\nHola ' + $json.nombre + ',\\n\\nNuestro equipo técnico ha analizado tu caso:\\n\\n📋 *Diagnóstico:*\\n' + ($json.diagnosticoFinal?.principal || 'Análisis completado') + '\\n\\n💡 *Causa identificada:*\\n' + ($json.diagnosticoFinal?.causa || 'Por determinar') + '\\n\\n🔧 *Solución propuesta:*\\n' + ($json.diagnosticoFinal?.solucion || 'Se definirá en la cita') + '\\n\\n📊 *Áreas analizadas:*\\n' + $json.areas + '\\n\\n' + $json.emojiUrgencia + ' *Urgencia:* ' + $json.urgencia + ' | ⏱️ *Duración:* ' + $json.duracion + ' min\\n' + ($json.requiere_visita ? '📍 *Requiere visita técnica*' : '📍 *Consulta virtual*') + '\\n\\n📅 *Selecciona tu horario (9 AM - 5 PM):*\\n1) ' + $json.opcionesHorario[0]?.slice(0,16).replace('T', ' ') + '\\n2) ' + $json.opcionesHorario[1]?.slice(0,16).replace('T', ' ') + '\\n3) ' + $json.opcionesHorario[2]?.slice(0,16).replace('T', ' ') + '\\n\\nResponde con 1, 2 o 3 para confirmar tu cita.') }}",
+        "method": "GET",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Equipo Técnico": {
+      "main": [["Recibir Caso"]]
+    },
+    "Recibir Caso": {
+      "main": [["Agente Triaje", "Agente Hardware", "Agente Software", "Agente Redes", "Agente Seguridad"]]
+    },
+    "Consolidador de Diagnóstico": {
+      "main": [["Agente Síntesis"]]
+    },
+    "Agente Síntesis": {
+      "main": [["Preparar Citas"]]
+    },
+    "Preparar Citas": {
+      "main": [["Crear Evento Calendar"], ["Notificar a Angel"], ["Confirmar Cliente con Opciones"]]
+    },
+    "Crear Evento Calendar": {
+      "main": [["Notificar a Angel"]]
+    },
+    "Notificar a Angel": {
+      "main": [["Confirmar Cliente con Opciones"]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["sistemas4a", "equipo-tecnico", "diagnostico", "citas", "ia"],
+  "triggerCount": 0
+}
