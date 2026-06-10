@@ -74,8 +74,8 @@
     html=html.replace(/(&gt;=)/g,'<span class="text-orange-400">$1</span>');
     html=html.replace(/(==)/g,'<span class="text-orange-400">$1</span>');
     html=html.replace(/(!=)/g,'<span class="text-orange-400">$1</span>');
-    // single-char operators (avoiding numbers in spans)
-    html=html.replace(/([+\-*\/&gt;&lt;])(?!([^<]*>|[^>]*<\/span>))/g,'<span class="text-orange-400">$1</span>');
+    // single-char operators (match HTML entities as whole, not char by char)
+    html=html.replace(/(&gt;|&lt;|[+\-*\/])(?![^<]*>)/g,'<span class="text-orange-400">$1</span>');
     // keywords (must be whole words, after operators to avoid interference)
     html=html.replace(/\b(ALGORITMO|FINALGORITMO|DEFINIR|REAL|ENTERO|CADENA|SI|SINO|SINOSI|ENTONCES|FINSI|MIENTRAS|FINMIENTRAS|REPETIR|HASTA|QUE|ESCRIBIR|LEER|ESPERAR|HACER|COMO|FIN)\b/g,'<span class="text-purple-400 font-bold">$1</span>');
     return html;
