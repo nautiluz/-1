@@ -64,20 +64,20 @@
     var kw=['ALGORITMO','FINALGORITMO','DEFINIR','REAL','ENTERO','CADENA','SI','SINO','SINOSI','ENTONCES','FINSI','MIENTRAS','FINMIENTRAS','REPETIR','HASTA','QUE','ESCRIBIR','LEER','ESPERAR','HACER','COMO','FIN'];
     function esc(s){return s.replace(/[&<>]/g,function(c){return c==='&'?'&amp;':c==='<'?'&lt;':'&gt;'})}
     var html=esc(text);
-    // strings
-    html=html.replace(/("[^"]*")/g,'<span class="text-emerald-400">$1</span>');
-    // numbers (standalone)
-    html=html.replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="text-yellow-400">$1</span>');
-    // multi-char operators
-    html=html.replace(/(&lt;\-)/g,'<span class="text-orange-400">$1</span>');
-    html=html.replace(/(&lt;=)/g,'<span class="text-orange-400">$1</span>');
-    html=html.replace(/(&gt;=)/g,'<span class="text-orange-400">$1</span>');
-    html=html.replace(/(==)/g,'<span class="text-orange-400">$1</span>');
-    html=html.replace(/(!=)/g,'<span class="text-orange-400">$1</span>');
-    // single-char operators (match HTML entities as whole, not char by char)
-    html=html.replace(/(&gt;|&lt;|[+\-*\/])(?![^<]*>)/g,'<span class="text-orange-400">$1</span>');
-    // keywords (must be whole words, after operators to avoid interference)
-    html=html.replace(/\b(ALGORITMO|FINALGORITMO|DEFINIR|REAL|ENTERO|CADENA|SI|SINO|SINOSI|ENTONCES|FINSI|MIENTRAS|FINMIENTRAS|REPETIR|HASTA|QUE|ESCRIBIR|LEER|ESPERAR|HACER|COMO|FIN)\b/g,'<span class="text-purple-400 font-bold">$1</span>');
+    // str (quoted text)
+    html=html.replace(/("[^"]*")/g,'<span style="color:#34d399">$1</span>');
+    // nums
+    html=html.replace(/\b(\d+(?:\.\d+)?)\b/g,'<span style="color:#facc15">$1</span>');
+    // multi-char ops: <-  <=  >=  ==  !=
+    html=html.replace(/(&lt;\-)/g,'<span style="color:#fb923c">$1</span>');
+    html=html.replace(/(&lt;=)/g,'<span style="color:#fb923c">$1</span>');
+    html=html.replace(/(&gt;=)/g,'<span style="color:#fb923c">$1</span>');
+    html=html.replace(/(==)/g,'<span style="color:#fb923c">$1</span>');
+    html=html.replace(/(!=)/g,'<span style="color:#fb923c">$1</span>');
+    // single-char ops: > < + - * /
+    html=html.replace(/(&gt;|&lt;|[+\-*\/])(?![^<]*>)/g,'<span style="color:#fb923c">$1</span>');
+    // keywords
+    html=html.replace(/\b(ALGORITMO|FINALGORITMO|DEFINIR|REAL|ENTERO|CADENA|SI|SINO|SINOSI|ENTONCES|FINSI|MIENTRAS|FINMIENTRAS|REPETIR|HASTA|QUE|ESCRIBIR|LEER|ESPERAR|HACER|COMO|FIN)\b/g,'<span style="color:#c084fc;font-weight:bold">$1</span>');
     return html;
   }
 
