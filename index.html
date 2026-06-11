@@ -473,60 +473,61 @@
 
   // ===== DRAG & DROP FLOWCHART PUZZLE =====
   function DragDropFlowchart({flow, onComplete}){
-    const nodeTxt=useCallback((n)=>{
+    const getNodeTxt=useCallback((n)=>{
+      if(!n)return'';
       if(Array.isArray(n.text))return n.text.join(' ');
       return n.text;
     },[]);
-    const buildPuzzle=useCallback((flow)=>{
-      if(!flow)return null;
-      const nodeMap={}; flow.nodes.forEach(n=>{nodeMap[n.id]={...n}});
-      const children={}, parent={};
-      flow.edges.forEach(e=>{
-        if(!children[e.from])children[e.from]=[];
-        children[e.from].push(e);
-        parent[e.to]=e.from;
-      });
-      const rootId=flow.nodes.find(n=>!parent[n.id])?.id||flow.nodes[0].id;
-      // BFS traversal avoiding cycles
-      const order=[], visited=new Set();
-      function walk(id){
-        if(visited.has(id))return;
-        visited.add(id);
-        const node=nodeMap[id]; if(!node)return;
-        const kids=children[id]||[];
-        const vEdge=kids.find(e=>e.label==='V');
-        const fEdge=kids.find(e=>e.label==='F');
-        if(vEdge&&fEdge){
-          order.push({type:'branch',cond:node,v:nodeMap[vEdge.to],f:nodeMap[fEdge.to]});
-          walk(vEdge.to); walk(fEdge.to);
-        }else{
-          order.push({type:'node',node:node});
-          kids.forEach(k=>walk(k.to));
+
+    const genPuzzle=useCallback((flow)=>{
+      try{
+        if(!flow||!flow.nodes)return null;
+        var nodeMap={}; flow.nodes.forEach(function(n){nodeMap[n.id]={...n};});
+        var children={}, parent={};
+        flow.edges.forEach(function(e){
+          if(!children[e.from])children[e.from]=[];
+          children[e.from].push(e);
+          parent[e.to]=e.from;
+        });
+        var rootId=flow.nodes.find(function(n){return!parent[n.id];})?.id||flow.nodes[0].id;
+        var order=[], seen={};
+        function walk(id){
+          if(seen[id])return;
+          seen[id]=1;
+          var node=nodeMap[id]; if(!node)return;
+          var kids=children[id]||[];
+          var v=kids.find(function(e){return e.label==='V'||e.label==='Sí'||e.label==='Si';});
+          var f=kids.find(function(e){return e.label==='F'||e.label==='No';});
+          if(v&&f){
+            order.push({t:'branch',c:node,vn:nodeMap[v.to],fn:nodeMap[f.to]});
+            walk(v.to); walk(f.to);
+          }else{
+            order.push({t:'node',n:node});
+            kids.forEach(function(k){walk(k.to);});
+          }
         }
-      }
-      walk(rootId);
-      const slots=[];
-      const pieceMap={};
-      order.forEach(o=>{
-        if(o.type==='node'){
-          const id=o.node.id;
-          if(!pieceMap[id]){pieceMap[id]=true;slots.push({id,text:nodeTxt(o.node),type:o.node.type,node:o.node});}
-        }else{
-          const cid=o.cond.id;
-          if(!pieceMap[cid]){pieceMap[cid]=true;slots.push({id:cid,text:nodeTxt(o.cond),type:'condition',node:o.cond,v:o.v,f:o.f});}
-          const vid=o.v.id;
-          if(!pieceMap[vid]){pieceMap[vid]=true;slots.push({id:vid,text:nodeTxt(o.v),type:o.v.type,node:o.v,branchOf:cid,branchLabel:'V'});}
-          const fid=o.f.id;
-          if(!pieceMap[fid]){pieceMap[fid]=true;slots.push({id:fid,text:nodeTxt(o.f),type:o.f.type,node:o.f,branchOf:cid,branchLabel:'F'});}
-        }
-      });
-      // Find any remaining unvisited nodes and add them (for merge/end nodes)
-      flow.nodes.forEach(n=>{
-        if(!pieceMap[n.id]){pieceMap[n.id]=true;slots.push({id:n.id,text:nodeTxt(n),type:n.type,node:n});}
-      });
-      const pieces=flow.nodes.map(n=>({id:n.id,text:nodeTxt(n),type:n.type})).sort(()=>Math.random()-0.5);
-      return {slots,pieces};
-    },[nodeTxt]);
+        walk(rootId);
+        var slots=[], used={};
+        order.forEach(function(o){
+          if(o.t==='node'){
+            var id=o.n.id;
+            if(!used[id]){used[id]=1;slots.push({id:id,text:getNodeTxt(o.n),type:o.n.type,node:o.n});}
+          }else{
+            var cid=o.c.id;
+            if(!used[cid]){used[cid]=1;slots.push({id:cid,text:getNodeTxt(o.c),type:'condition',node:o.c,v:o.vn,f:o.fn});}
+            var vid=o.vn.id;
+            if(!used[vid]){used[vid]=1;slots.push({id:vid,text:getNodeTxt(o.vn),type:o.vn.type,node:o.vn,branchOf:cid,branchLabel:'V'});}
+            var fid=o.fn.id;
+            if(!used[fid]){used[fid]=1;slots.push({id:fid,text:getNodeTxt(o.fn),type:o.fn.type,node:o.fn,branchOf:cid,branchLabel:'F'});}
+          }
+        });
+        flow.nodes.forEach(function(n){
+          if(!used[n.id]){used[n.id]=1;slots.push({id:n.id,text:getNodeTxt(n),type:n.type,node:n});}
+        });
+        var pieces=flow.nodes.map(function(n){return{id:n.id,text:getNodeTxt(n),type:n.type};}).sort(function(){return Math.random()-0.5;});
+        return{slots:slots,pieces:pieces};
+      }catch(e){console.error('Puzzle error',e);return null;}
+    },[getNodeTxt]);
 
     const [puzzle,setPuzzle]=useState(null);
     const [placed,setPlaced]=useState({});
@@ -537,106 +538,60 @@
 
     useEffect(()=>{
       if(!flow)return;
-      const p=buildPuzzle(flow);
+      var p=genPuzzle(flow);
       if(!p)return;
       setPuzzle(p);
-      setShuffled(p.pieces.map(pp=>({...pp,key:Math.random()})));
-      setPlaced({});
-      setSelected(null);
-      setWon(false);
-    },[flow,buildPuzzle]);
+      setShuffled(p.pieces.map(function(pp){return{...pp,k:Math.random()};}));
+      setPlaced({}); setSelected(null); setWon(false);
+    },[flow,genPuzzle]);
 
-    const selectPiece=(id)=>{
+    var selectPiece=function(id){
       if(won)return;
-      if(selected===id)setSelected(null);
-      else setSelected(id);
+      if(selected===id)setSelected(null);else setSelected(id);
     };
 
-    const placePiece=(slotId)=>{
+    var placePiece=function(slotId){
       if(won||!selected||!puzzle)return;
-      const slot=puzzle.slots.find(s=>s.id===slotId);
+      var slot=puzzle.slots.find(function(s){return s.id===slotId;});
       if(!slot||placed[slotId])return;
       if(selected===slotId){
-        setPlaced(p=>{const n={...n,[slotId]:selected};if(Object.keys(n).length===puzzle.slots.length){setTimeout(()=>setWon(true),300);}return n;});
+        var next=Object.assign({},placed); next[slotId]=selected;
+        setPlaced(next);
         setSelected(null);
+        if(Object.keys(next).length===puzzle.slots.length){
+          setTimeout(function(){setWon(true);},400);
+        }
       }else{
         setErrorSlot(slotId);
-        setTimeout(()=>setErrorSlot(null),500);
+        setTimeout(function(){setErrorSlot(null);},500);
       }
     };
 
-    const shapeClass=(type,branch)=>{
-      let base='flex items-center justify-center border-2 font-bold text-xs text-center transition-all ';
-      if(type==='start'||type==='end')base+='rounded-full w-32 h-10 ';
-      else if(type==='io')base+='skew-x-[-12deg] w-48 h-14 ';
-      else if(type==='condition')base+='w-56 h-20 ';
-      else base+='rounded-md w-44 h-14 ';
-      return base;
+    var shapeCls=function(type){
+      var b='flex items-center justify-center border-2 font-bold text-xs text-center transition-all ';
+      if(type==='start'||type==='end')b+='rounded-full w-28 h-10 ';
+      else if(type==='io')b+='skew-x-[-12deg] w-44 h-12 ';
+      else if(type==='condition')b+='w-52 h-20 ';
+      else b+='rounded-md w-40 h-12 ';
+      return b;
     };
 
-    const placedClass=(slotId)=>{
-      if(errorSlot===slotId)return 'error-shake border-red-500 bg-red-900/30';
-      if(placed[slotId])return 'border-emerald-500 bg-emerald-900/30 text-emerald-300 shadow-lg';
-      return 'border-dashed border-slate-600 bg-slate-800/50 text-slate-500 hover:bg-slate-700/50';
+    var slotCls=function(slotId){
+      if(errorSlot===slotId)return'error-shake border-red-500 bg-red-900/30';
+      if(placed[slotId])return'border-emerald-500 bg-emerald-900/30 text-emerald-300 shadow-lg';
+      return'border-dashed border-slate-600 bg-slate-800/50 text-slate-500 hover:bg-slate-700/50';
     };
 
-    const renderSlot=(slot,idx)=>{
-      const isPlaced=!!placed[slot.id];
-      const isBranch=slot.branchOf;
-      const condBranch=slot.branchLabel;
-      const inner=isPlaced
-        ?React.createElement('span',{className:'text-white font-bold text-xs'},slot.text)
-        :React.createElement('span',{className:'text-slate-500 text-xs'},'?');
-      const el=React.createElement('button',{
-        key:slot.id,
-        onClick:()=>placePiece(slot.id),
-        disabled:isPlaced||won,
-        className:shapeClass(slot.type,slot.branchOf)+placedClass(slot.id)+(isPlaced?' cursor-default':' cursor-pointer')
-      },inner);
-
-      if(isBranch){
-        // Branch label arrow
-        const label=slot.branchLabel==='V'?'Sí':'No';
-        const labelColor=slot.branchLabel==='V'?'text-emerald-400':'text-red-400';
-        return React.createElement('div',{key:slot.id,className:'flex flex-col items-center'},
-          React.createElement('div',{className:'w-1 h-6 bg-slate-600'+(slot.branchLabel==='V'?' ml-8':' mr-8')}),
-          React.createElement('span',{className:labelColor+' text-xs font-bold mb-1'},label),
-          el
-        );
-      }
-      return el;
+    var pieceCls=function(pid){
+      var used=!!placed[pid];
+      if(selected===pid)return shapeCls(puzzle?puzzle.slots.find(function(s){return s.id===pid;})?.type:null)+' ring-2 ring-indigo-400 scale-105 bg-slate-700 border-indigo-400 text-white';
+      if(used)return shapeCls(puzzle?puzzle.slots.find(function(s){return s.id===pid;})?.type:null)+' opacity-20 pointer-events-none border-slate-600 bg-slate-800 text-white';
+      return shapeCls(puzzle?puzzle.slots.find(function(s){return s.id===pid;})?.type:null)+' border-slate-600 bg-slate-800 hover:bg-slate-700 text-white';
     };
 
-    const renderSlotRow=(slot,idx)=>{
-      // Check if next slots are branches of this one
-      const nextSlots=puzzle?puzzle.slots:[];
+    if(!puzzle)return React.createElement('div',{className:'text-slate-400 text-center py-8'},'Preparando puzzle...');
 
-      // Find if this is a condition with branches
-      if(slot.type==='condition'){
-        const vSlot=nextSlots.find(s=>s.branchOf===slot.id&&s.branchLabel==='V');
-        const fSlot=nextSlots.find(s=>s.branchOf===slot.id&&s.branchLabel==='F');
-        if(vSlot||fSlot){
-          return React.createElement('div',{key:slot.id,className:'flex flex-col items-center w-full'},
-            // Condition node
-            renderSlot(slot,idx),
-            // Branch arrows
-            React.createElement('div',{className:'flex w-full justify-center gap-4 mt-1'},
-              React.createElement('div',{className:'flex-1 flex flex-col items-center'},React.createElement('div',{className:'w-full h-px bg-slate-600'}),
-                vSlot?renderSlot(vSlot):null),
-              React.createElement('div',{className:'flex-1 flex flex-col items-center'},React.createElement('div',{className:'w-full h-px bg-slate-600'}),
-                fSlot?renderSlot(fSlot):null)
-            )
-          );
-        }
-      }
-      // Skip branch slots (already rendered with their condition)
-      if(slot.branchOf)return null;
-      return React.createElement('div',{key:slot.id,className:'flex flex-col items-center'},renderSlot(slot,idx));
-    };
-
-    if(!puzzle)return React.createElement('div',{className:'text-slate-400 text-center py-8'},'Generando puzzle...');
-
-    return React.createElement('div',{className:'space-y-6 animate-fade-in'},
+    return React.createElement('div',{className:'space-y-4 animate-fade-in'},
       React.createElement('div',{className:'flex items-center justify-between'},
         React.createElement('h4',{className:'text-lg font-bold text-indigo-400 flex items-center'},
           React.createElement(Icon,{name:'GitMerge',size:18,className:'mr-2'}),' Arma el Diagrama de Flujo'
@@ -645,30 +600,67 @@
           'Colocadas: ',Object.keys(placed).length,' / ',puzzle.slots.length
         )
       ),
-      // Flowchart canvas
-      React.createElement('div',{className:'bg-slate-900/80 border border-slate-700 rounded-xl p-6 flex flex-col items-center gap-3 min-h-[300px]'},
-        puzzle.slots.map((s,i)=>renderSlotRow(s,i))
+      // Slots area
+      React.createElement('div',{className:'bg-slate-900/80 border border-slate-700 rounded-xl p-4 flex flex-col items-center gap-2 min-h-[200px]'},
+        puzzle.slots.map(function(s,i){
+          // If this slot belongs to a branch, skip it (rendered with its condition)
+          if(s.branchOf)return null;
+          // Check if this slot is a condition with branch children
+          var vChild=puzzle.slots.find(function(x){return x.branchOf===s.id&&x.branchLabel==='V';});
+          var fChild=puzzle.slots.find(function(x){return x.branchOf===s.id&&x.branchLabel==='F';});
+          if(vChild||fChild){
+            return React.createElement('div',{key:s.id||i,className:'flex flex-col items-center w-full'},
+              // Condition slot
+              React.createElement('button',{
+                onClick:function(){placePiece(s.id);},
+                disabled:!!placed[s.id]||won,
+                className:shapeCls(s.type)+slotCls(s.id)+(placed[s.id]?' cursor-default':' cursor-pointer')
+              },placed[s.id]?React.createElement('span',{className:'text-white font-bold text-xs'},s.text):React.createElement('span',{className:'text-slate-500 text-xs'},'?')),
+              // Branch row
+              React.createElement('div',{className:'flex w-full justify-center gap-6 mt-1'},
+                React.createElement('div',{className:'flex-1 flex flex-col items-center max-w-[180px]'},
+                  React.createElement('span',{className:'text-emerald-400 text-xs font-bold mb-0.5'},'Sí'),
+                  vChild?React.createElement('button',{
+                    onClick:function(){placePiece(vChild.id);},
+                    disabled:!!placed[vChild.id]||won,
+                    className:shapeCls(vChild.type)+slotCls(vChild.id)+(placed[vChild.id]?' cursor-default':' cursor-pointer')
+                  },placed[vChild.id]?React.createElement('span',{className:'text-white font-bold text-xs'},vChild.text):React.createElement('span',{className:'text-slate-500 text-xs'},'?')):null
+                ),
+                React.createElement('div',{className:'flex-1 flex flex-col items-center max-w-[180px]'},
+                  React.createElement('span',{className:'text-red-400 text-xs font-bold mb-0.5'},'No'),
+                  fChild?React.createElement('button',{
+                    onClick:function(){placePiece(fChild.id);},
+                    disabled:!!placed[fChild.id]||won,
+                    className:shapeCls(fChild.type)+slotCls(fChild.id)+(placed[fChild.id]?' cursor-default':' cursor-pointer')
+                  },placed[fChild.id]?React.createElement('span',{className:'text-white font-bold text-xs'},fChild.text):React.createElement('span',{className:'text-slate-500 text-xs'},'?')):null
+                )
+              )
+            );
+          }
+          // Regular slot
+          return React.createElement('button',{key:s.id||i,
+            onClick:function(){placePiece(s.id);},
+            disabled:!!placed[s.id]||won,
+            className:shapeCls(s.type)+slotCls(s.id)+(placed[s.id]?' cursor-default':' cursor-pointer')
+          },placed[s.id]?React.createElement('span',{className:'text-white font-bold text-xs'},s.text):React.createElement('span',{className:'text-slate-500 text-xs'},'?'));
+        })
       ),
       // Pieces bank
-      React.createElement('div',{className:'bg-slate-800/60 border border-slate-700 rounded-xl p-4'},
-        React.createElement('h5',{className:'text-sm font-bold text-slate-400 mb-3 text-center'},'🧩 Banco de Piezas (toca una y luego toca el espacio vacío)'),
-        React.createElement('div',{className:'flex flex-wrap justify-center gap-3'},
-          shuffled.map(p=>{
-            const used=!!placed[p.id];
-            const isSel=selected===p.id;
-            return React.createElement('button',{
-              key:p.key,
-              onClick:()=>selectPiece(p.id),
-              disabled:used||won,
-              className:shapeClass(p.type)+(used?' opacity-20 pointer-events-none':'')+(isSel?' ring-2 ring-indigo-400 scale-105 bg-slate-700 border-indigo-400':' border-slate-600 bg-slate-800 hover:bg-slate-700')+' text-white'
+      React.createElement('div',{className:'bg-slate-800/60 border border-slate-700 rounded-xl p-3'},
+        React.createElement('p',{className:'text-xs text-slate-400 mb-2 text-center'},'🧩 Banco de Piezas — toca una pieza, luego toca su lugar en el diagrama'),
+        React.createElement('div',{className:'flex flex-wrap justify-center gap-2'},
+          shuffled.map(function(p){
+            return React.createElement('button',{key:p.k,
+              onClick:function(){selectPiece(p.id);},
+              disabled:!!placed[p.id]||won,
+              className:pieceCls(p.id)
             },p.text);
           })
         )
       ),
-      // Win message
-      won?React.createElement('div',{className:'text-center py-4 px-6 bg-emerald-900/50 border border-emerald-600 rounded-xl'},
-        React.createElement('p',{className:'text-emerald-300 font-bold text-lg'},'🎉 ¡Diagrama armado correctamente! +100 XP'),
-        React.createElement('button',{onClick:()=>{if(onComplete)onComplete();},className:'mt-2 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg font-bold text-sm transition'},
+      won?React.createElement('div',{className:'text-center py-3 px-5 bg-emerald-900/50 border border-emerald-600 rounded-xl'},
+        React.createElement('p',{className:'text-emerald-300 font-bold text-base'},'🎉 Diagrama completado! +100 XP'),
+        React.createElement('button',{onClick:function(){if(onComplete)onComplete();},className:'mt-2 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg font-bold text-sm transition'},
           'Continuar'
         )
       ):null
